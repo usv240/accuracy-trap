@@ -1,0 +1,48 @@
+{
+  "headline": {
+    "retail_flood_calibration_error": 0.2454,
+    "sophisticated_calibration_error": 0.0321,
+    "error_multiplier": 7.65,
+    "n_markets_analyzed": 1535,
+    "data_source": "Manifold Markets \u2014 1,535 resolved binary markets",
+    "conclusion": "Markets flooded with retail traders (micro-bets from many participants) show 24.5% calibration error \u2014 7.7x worse than sophisticated markets (3.2%). This is the Accuracy Trap: when a topic goes viral, retail noise drowns out informed signals."
+  },
+  "attention_buckets": [
+    {
+      "label": "Micro-bet\n(Retail flood)",
+      "mean_calibration_error": 0.2454,
+      "sample_size": 384,
+      "median_avg_bet": 42.0,
+      "median_nr_bettors": 10
+    },
+    {
+      "label": "Small-bet",
+      "mean_calibration_error": 0.0966,
+      "sample_size": 384,
+      "median_avg_bet": 113.3,
+      "median_nr_bettors": 17
+    },
+    {
+      "label": "Large-bet",
+      "mean_calibration_error": 0.0486,
+      "sample_size": 383,
+      "median_avg_bet": 240.2,
+      "median_nr_bettors": 25
+    },
+    {
+      "label": "Whale-bet\n(Sophisticated)",
+      "mean_calibration_error": 0.0321,
+      "sample_size": 384,
+      "median_avg_bet": 616.6,
+      "median_nr_bettors": 25
+    }
+  ],
+  "retail_flood_detector": {
+    "metric": "avg_bet_size = volume / nr_bettors",
+    "retail_threshold_percentile": 25,
+    "retail_threshold_value": 78.52,
+    "high_attention_retail_error": 0.228,
+    "high_attention_sophisticated_error": 0.05,
+    "ratio": 4.56
+  }
+}

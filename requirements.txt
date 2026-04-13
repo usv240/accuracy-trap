@@ -1,0 +1,13 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+streamlit>=1.33.0
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.13.0
+pytrends>=4.9.2
+yfinance>=0.2.40
+requests>=2.31.0
+plotly>=5.20.0
+matplotlib>=3.8.0
+datasets>=2.18.0
+huggingface_hub>=0.22.0
