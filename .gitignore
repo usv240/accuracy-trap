@@ -41,3 +41,6 @@ TEST_RESULTS.md
 
 # OS
 Thumbs.db
+
+# Auto-generated diagnostic output (read by Claude, not committed)
+output/

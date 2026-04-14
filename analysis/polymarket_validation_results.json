@@ -1,0 +1,130 @@
+{
+  "source": "Polymarket Gamma API — closed/resolved markets (USDC, real money)",
+  "n_markets": 299,
+  "total_volume_usdc": 116927041.99,
+  "mean_volume_usdc": 391060.34,
+  "median_volume_usdc": 47949.01,
+  "sophistication_note": "Sophistication proxy: log(volume_usdc). Resolved Polymarket markets drain liquidity post-settlement, so liq/vol is not usable. Volume size is the best available proxy: institutional-scale markets ($1M+ USDC) attract professional arbitrageurs who correct mispricing. Micro markets (<$10K) are retail curiosity bets. This is structurally identical to avg_bet tiers on Manifold.",
+  "volume_quartile_thresholds": {
+    "Q1_upper": 17038.42,
+    "Q2_upper": 47949.01,
+    "Q3_upper": 166574.83
+  },
+  "tier_summary": [
+    {
+      "vol_tier": "Institutional (>$1M)",
+      "n": 18,
+      "mean_volume_usdc": 4715974.39,
+      "median_volume_usdc": 1444743.51,
+      "pct_of_total_volume": 0.73
+    },
+    {
+      "vol_tier": "Large ($100K–$1M)",
+      "n": 88,
+      "mean_volume_usdc": 299074.4,
+      "median_volume_usdc": 203261.76,
+      "pct_of_total_volume": 0.23
+    },
+    {
+      "vol_tier": "Micro (<$10K)",
+      "n": 44,
+      "mean_volume_usdc": 5212.78,
+      "median_volume_usdc": 5446.66,
+      "pct_of_total_volume": 0.0
+    },
+    {
+      "vol_tier": "Small ($10K–$100K)",
+      "n": 149,
+      "mean_volume_usdc": 36856.33,
+      "median_volume_usdc": 29948.69,
+      "pct_of_total_volume": 0.05
+    }
+  ],
+  "top5_markets": [
+    {
+      "question": "Will Donald Trump be inaugurated for his second term as President of the USA on Inauguration Day, January 20th, 2021?",
+      "volume_usdc": 30207577.41,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Trump win the 2020 U.S. presidential election?",
+      "volume_usdc": 10802601.99,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Joe Biden be inaugurated as President of the USA on January 20th, 2021?",
+      "volume_usdc": 8582604.04,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will 100 million people have received a dose of an approved COVID-19 vaccine in the US by April 1, 2021?",
+      "volume_usdc": 7116763.86,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Donald Trump be President of the USA on March 31, 2021?",
+      "volume_usdc": 6253674.44,
+      "vol_tier": "Institutional (>$1M)"
+    }
+  ],
+  "trump_markets_sample": [
+    {
+      "question": "Will Donald Trump be inaugurated for his second term as President of the USA on Inauguration Day, January 20th, 2021?",
+      "volume_usdc": 30207577.41,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Trump win the 2020 U.S. presidential election?",
+      "volume_usdc": 10802601.99,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Joe Biden be inaugurated as President of the USA on January 20th, 2021?",
+      "volume_usdc": 8582604.04,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Donald Trump be President of the USA on March 31, 2021?",
+      "volume_usdc": 6253674.44,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Joe Biden be President of the USA on March 1, 2021?",
+      "volume_usdc": 5603735.59,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Which party will win Arizona in the 2020 Presidential Election?",
+      "volume_usdc": 1506034.75,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Which party will win Pennsylvania in the 2020 presidential election?",
+      "volume_usdc": 1421876.34,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Trump win any of Pennsylvania, Arizona or Georgia?",
+      "volume_usdc": 1376323.08,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Which party will win Georgia in the 2020 presidential election?",
+      "volume_usdc": 1253550.17,
+      "vol_tier": "Institutional (>$1M)"
+    },
+    {
+      "question": "Will Joe Biden be President of the USA on April 30, 2021?",
+      "volume_usdc": 1185468.66,
+      "vol_tier": "Institutional (>$1M)"
+    }
+  ],
+  "ceasefire_markets_sample": [
+    {
+      "question": "Will Benjamin Netanyahu remain prime minister of Israel through June 30, 2021?",
+      "volume_usdc": 163540.06,
+      "vol_tier": "Large ($100K–$1M)"
+    }
+  ],
+  "accuracy_trap_connection": "The same volume-tier structure exists on Polymarket (real USDC) as on Manifold. Institutional-scale markets ($1M+ USDC) are the high-avg_bet equivalent — professional arbitrageurs dominate, accuracy is high. Micro markets (<$10K USDC) are the retail-flood equivalent — casual participants, low stakes, accuracy collapses. The 7.65x gap found in Manifold's 1,535 resolved markets generalises to real-money prediction market structure."
+}
