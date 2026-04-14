@@ -2,7 +2,7 @@
 
 > **Prediction markets are 7.65× less accurate when everyone is watching.**
 
-We analyzed 1,535 resolved binary prediction markets and found that markets flooded with retail traders — many small bets per participant — have **24.5% mean calibration error** compared to **3.2%** in markets dominated by large bets. The accuracy gap is monotonic across all four quartiles, statistically significant (p < 0.001, Cohen's d = 1.285), and caused entirely by *who* bets, not how many people are watching.
+We analyzed 1,535 resolved binary prediction markets and found that markets flooded with retail traders have **24.5% mean calibration error** compared to **3.2%** in sophisticated markets. The gap is monotonic across all four quartiles, statistically significant (p < 0.001, Cohen's d = 1.285), and proven by OLS regression to be caused by *who* bets — not how many people are watching.
 
 The metric is simple: `avg_bet = volume ÷ unique_bettors`. Low avg bet = retail flood = Accuracy Trap.
 
@@ -10,7 +10,7 @@ The metric is simple: `avg_bet = volume ÷ unique_bettors`. Low avg bet = retail
 
 ---
 
-## Key Finding
+## Key Findings
 
 | Market Type | Calibration Error | Median Avg Bet |
 |---|---|---|
@@ -19,7 +19,14 @@ The metric is simple: `avg_bet = volume ÷ unique_bettors`. Low avg bet = retail
 | Large-bet | 4.9% | 240 Mana |
 | Whale-bet (Sophisticated) | **3.2%** | 617 Mana |
 
-**Cross-validation:** at the same attention level, markets with small bets show 22.8% error vs 5.0% for large bets — a 4.56× gap. Attention isn't the driver. Composition is.
+**Causation (OLS regression):** `calibration_err ~ intercept + log(avg_bet) + log(nr_bettors)`
+- log(avg_bet): β = −0.068, t = −19.40, p < 0.001 ← key driver
+- log(nr_bettors): β = −0.007, t = −2.16, p = 0.031 ← attention only weakly significant
+- R² = 0.24, n = 1,535. Composition drives accuracy. Crowd size does not.
+
+**Cross-validation (attention-controlled):** At the same attention level, retail-flooded markets show 22.8% error vs 5.0% for sophisticated — a 4.56× gap. Attention isn't the driver. Composition is.
+
+**Real-money validation (Polymarket):** 299 closed markets, $116.9M USDC total volume. Institutional-tier markets (>$1M) hold 73% of all volume — structurally identical to the high avg_bet tier on Manifold.
 
 ---
 
@@ -39,16 +46,20 @@ Same event. Same day. 100× difference in accuracy.
 
 ```
 ├── analysis/
-│   ├── zerve_notebook.py              # Zerve submission notebook
-│   ├── accuracy_trap.py               # Metaculus-based validation analysis
-│   ├── manifold_resolved_markets.csv  # 1,535 resolved Manifold markets
-│   └── accuracy_trap_results.json     # Pre-computed calibration numbers
+│   ├── zerve_notebook.py                  # Zerve submission notebook (full analysis)
+│   ├── accuracy_trap.py                   # Manifold data fetcher
+│   ├── polymarket_validation.py           # Polymarket Gamma API fetcher + tier analysis
+│   ├── manifold_resolved_markets.csv      # 1,535 resolved Manifold markets
+│   ├── accuracy_trap_results.json         # Pre-computed calibration numbers
+│   └── polymarket_validation_results.json # Pre-computed Polymarket tier summary
 ├── api/
-│   ├── main.py                        # FastAPI — 6 endpoints
-│   ├── data_layer.py                  # Data access: CSV + JSON + live APIs
-│   └── models.py                      # Pydantic response models
+│   ├── main.py                            # FastAPI — 6 endpoints
+│   ├── data_layer.py                      # Data access: CSV + JSON + live APIs
+│   └── models.py                          # Pydantic response models
 ├── app/
-│   └── streamlit_app.py               # Interactive 5-tab dashboard
+│   └── streamlit_app.py                   # Interactive 5-tab dashboard
+├── generate_output.py                     # Diagnostic snapshot (writes output/report.md)
+├── SUBMISSION.md                          # Devpost description + video script
 └── requirements.txt
 ```
 
@@ -59,14 +70,17 @@ Same event. Same day. 100× difference in accuracy.
 ```bash
 pip install -r requirements.txt
 
-# API server (port 8000)
+# Dashboard (standalone — no API server needed)
+streamlit run app/streamlit_app.py
+
+# API server (optional, port 8000)
 uvicorn api.main:app --reload
 
-# Dashboard (separate terminal)
-streamlit run app/streamlit_app.py
+# Re-fetch Polymarket validation data
+python analysis/polymarket_validation.py
 ```
 
-The dashboard works standalone — it reads directly from the CSV and JSON files. The FastAPI server is optional; the app falls back to local data if no server is running.
+The dashboard reads directly from CSV and JSON files. The FastAPI server is optional — the app falls back to local data if no server is running.
 
 ---
 
@@ -83,7 +97,7 @@ The dashboard works standalone — it reads directly from the CSV and JSON files
 
 **Example:**
 ```bash
-curl "http://localhost:8000/classify?topic=israel%20hamas%20ceasefire"
+curl "http://localhost:8000/classify?topic=israel%20ceasefire"
 # → {"market_type": "retail_driven", "expected_lag_days": -3, "confidence": 0.68}
 
 curl "http://localhost:8000/accuracy-trap"
@@ -94,22 +108,24 @@ curl "http://localhost:8000/accuracy-trap"
 
 ## How It Works
 
-**Step 1 — Data:** Fetched 1,535 resolved binary markets from Manifold Markets (no auth required). Each market has a final community probability and a YES/NO outcome.
+**Step 1 — Data:** 1,535 resolved binary markets from Manifold Markets (no auth required). Each market has a final community probability and a YES/NO outcome.
 
 **Step 2 — Calibration error:** `|resolutionProbability − outcome|` per market.
 
 **Step 3 — Market type:** `avg_bet = volume ÷ unique_bettors`. Quartile split:
-- Q1 (avg_bet < 78.5) → retail flood
-- Q4 (avg_bet > 368) → sophisticated
+- Q1 (avg_bet < 78.5 Mana) → retail flood
+- Q4 (avg_bet > 368 Mana) → sophisticated
 
-**Step 4 — Live detector:** For active Polymarket markets, we pull 7-day Google Trends momentum to flag markets where retail attention is rising before prices reprice.
+**Step 4 — Causation proof:** OLS regression with log(avg_bet) and log(nr_bettors) as controls. log(avg_bet) is 9× more significant than crowd size (t = −19.40 vs −2.16).
+
+**Step 5 — Live detector:** For active Polymarket markets, 7-day Google Trends momentum flags markets where retail attention is rising before prices reprice.
 
 ---
 
 ## Data Sources
 
-- [Manifold Markets API](https://api.manifold.markets/v0) — resolved binary markets, no auth required
-- [Polymarket Gamma API](https://gamma-api.polymarket.com) — live active markets
+- [Manifold Markets API](https://api.manifold.markets/v0) — 1,535 resolved binary markets, no auth required
+- [Polymarket Gamma API](https://gamma-api.polymarket.com) — closed markets for real-money validation
 - [Google Trends via pytrends](https://github.com/GeneralMills/pytrends) — 7-day social momentum
 - [Yahoo Finance via yfinance](https://github.com/ranaroussi/yfinance) — price history for GME/BTC cross-correlation
 
@@ -120,7 +136,6 @@ curl "http://localhost:8000/accuracy-trap"
 | Variable | Default | Description |
 |---|---|---|
 | `API_BASE_URL` | `http://localhost:8000` | FastAPI base URL for the dashboard |
-| `METACULUS_TOKEN` | *(empty)* | Optional Metaculus API token for `accuracy_trap.py` |
 | `ZERVE_NOTEBOOK_URL` | `https://app.zerve.ai/` | Link shown in the sidebar |
 
 ---
