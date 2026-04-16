@@ -14,9 +14,6 @@ venv/
 .venv/
 env/
 .env
-
-# Environment variables
-.env
 .env.*
 
 # Jupyter
@@ -29,18 +26,18 @@ env/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 
-# Logs and runtime artifacts
-*.log
-*.err
-uvicorn.pid
+# Lambda build artifacts
+lambda_deploy.zip
+lambda_package/
 
-# Test/verification artifacts
+# Test/diagnostic output
+output/
 verification_results.json
 TEST_RESULTS.md
 
-# OS
-Thumbs.db
-
-# Auto-generated diagnostic output (read by Claude, not committed)
-output/
+# Logs
+*.log
+*.err
+uvicorn.pid

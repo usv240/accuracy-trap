@@ -1,44 +1,81 @@
 # The Accuracy Trap
 
-> **Prediction markets are 7.65× less accurate when everyone is watching.**
+> Prediction markets are **10.97× less accurate** when retail traders flood in — and we can detect it in real time.
 
-We analyzed 1,535 resolved binary prediction markets and found that markets flooded with retail traders have **24.5% mean calibration error** compared to **3.2%** in sophisticated markets. The gap is monotonic across all four quartiles, statistically significant (p < 0.001, Cohen's d = 1.285), and proven by OLS regression to be caused by *who* bets — not how many people are watching.
+Built for [ZerveHack 2026](https://zervehack.devpost.com/).
 
-The metric is simple: `avg_bet = volume ÷ unique_bettors`. Low avg bet = retail flood = Accuracy Trap.
-
-![Accuracy Trap Curve](analysis/accuracy_trap_curve.png)
+**Live app:** [accuracy-trap.hub.zerve.cloud](https://accuracy-trap.hub.zerve.cloud)  
+**Live API:** [Lambda endpoint](https://pil57aej3zgm64vkhospsca4dq0vvnff.lambda-url.us-east-1.on.aws/docs)
 
 ---
 
-## Key Findings
+## What We Found
 
-| Market Type | Calibration Error | Median Avg Bet |
+Prediction markets are supposed to be the most accurate forecasting tool we have. When people risk real money, they're supposed to research carefully.
+
+We found a systematic failure mode. When a topic goes viral, uninformed retail traders flood in with tiny bets — drowning out the small group of careful, informed forecasters who were already there. The price stops reflecting reality. We call it the **Accuracy Trap**.
+
+The signal is one metric: `avg_bet = total_volume ÷ unique_bettors`.
+
+Across **4,714 resolved binary markets** from Manifold Markets:
+
+| Market type | Calibration error | Median avg bet |
 |---|---|---|
-| Micro-bet (Retail flood) | **24.5%** | 42 Mana |
-| Small-bet | 9.7% | 113 Mana |
-| Large-bet | 4.9% | 240 Mana |
-| Whale-bet (Sophisticated) | **3.2%** | 617 Mana |
+| Micro-bet (Retail flood) | **22.3%** | 52 Mana |
+| Small-bet | 7.8% | 136 Mana |
+| Large-bet | 3.6% | 297 Mana |
+| Whale-bet (Sophisticated) | **2.0%** | 720 Mana |
 
-**Causation (OLS regression):** `calibration_err ~ intercept + log(avg_bet) + log(nr_bettors)`
-- log(avg_bet): β = −0.068, t = −19.40, p < 0.001 ← key driver
-- log(nr_bettors): β = −0.007, t = −2.16, p = 0.031 ← attention only weakly significant
-- R² = 0.24, n = 1,535. Composition drives accuracy. Crowd size does not.
+That's a **10.97× accuracy gap** between the worst and best quartile — confirmed at **p < 0.001**, Cohen's d = 1.285 (large effect by any standard).
 
-**Cross-validation (attention-controlled):** At the same attention level, retail-flooded markets show 22.8% error vs 5.0% for sophisticated — a 4.56× gap. Attention isn't the driver. Composition is.
-
-**Real-money validation (Polymarket):** 299 closed markets, $116.9M USDC total volume. Institutional-tier markets (>$1M) hold 73% of all volume — structurally identical to the high avg_bet tier on Manifold.
+The obvious objection: maybe viral topics are just harder to predict. We controlled for this. OLS regression shows `log(avg_bet)` predicts calibration error independently of `log(nr_bettors)` — controlling for crowd size, composition still drives accuracy at p < 0.001, t = −35.07. The driver is **who bets**, not how many are watching.
 
 ---
 
-## Real Examples
+## The Best Example
 
-**The most extreme case:** 100 bettors on whether the US would broker an Israel-Hamas ceasefire. The crowd said 3% chance. It happened. **97% calibration error.**
+**Same event. Same day. Same question.**
 
-**Same question, two markets — Trump 2024 election:**
-- Sophisticated version (avg bet: 3,076 Mana) → predicted 99.5%, resolved YES → **0.5% error**
-- Retail-flooded version (avg bet: 1,291 Mana) → predicted 50.0%, resolved YES → **50% error**
+> *Will Donald Trump win the 2024 US Presidential Election?*
 
-Same event. Same day. 100× difference in accuracy.
+Two markets existed simultaneously on Manifold. The only difference: who was betting.
+
+| Version | Avg bet | Prediction | Outcome | Error |
+|---|---|---|---|---|
+| Retail-flooded | 1,291 Mana | 50% YES | YES | **50%** — coin flip |
+| Sophisticated | 3,076 Mana | 99.5% YES | YES | **0.5%** — near-perfect |
+
+Same event. 100× difference in accuracy.
+
+---
+
+## How We Detect It Live
+
+1. Enter any market topic
+2. Keyword + category classifier tags it as **retail-driven** or **institutional-driven**
+3. For retail-driven topics: Google Trends 7-day momentum scores live Polymarket markets
+4. High social score + low avg bet = Accuracy Trap in progress → treat price with caution
+
+Validated cross-correlations:
+- **GME 2021**: Google Trends spike *preceded* market reprice by 3 days (Pearson corr = −0.604)
+- **BTC 2024**: Market price *led* Google Trends by 7 days (corr = +0.707)
+
+---
+
+## Key Statistics
+
+| Metric | Value |
+|---|---|
+| Markets analyzed | 4,714 resolved binary markets |
+| Retail flood calibration error | 22.3% (95% CI: 21.0%–23.5%) |
+| Sophisticated calibration error | 2.0% (95% CI: 1.6%–2.4%) |
+| Error multiplier | **10.97×** |
+| Welch's t-test | p < 0.001, t = 30.498 |
+| Cohen's d | **1.285** (large effect) |
+| OLS: log(avg_bet) | β = −0.0673, t = −35.07, p < 0.001 |
+| OLS: log(nr_bettors) | β = −0.0098, t = −4.61, p < 0.001 |
+| OLS R² | 0.253 (n = 4,714) |
+| Polymarket cross-validation | 299 markets, $116.9M USDC — same pattern |
 
 ---
 
@@ -46,98 +83,72 @@ Same event. Same day. 100× difference in accuracy.
 
 ```
 ├── analysis/
-│   ├── zerve_notebook.py                  # Zerve submission notebook (full analysis)
-│   ├── accuracy_trap.py                   # Manifold data fetcher
-│   ├── polymarket_validation.py           # Polymarket Gamma API fetcher + tier analysis
-│   ├── manifold_resolved_markets.csv      # 1,535 resolved Manifold markets
-│   ├── accuracy_trap_results.json         # Pre-computed calibration numbers
-│   └── polymarket_validation_results.json # Pre-computed Polymarket tier summary
+│   ├── accuracy_trap.py                   # Manifold data fetcher + calibration analysis
+│   ├── accuracy_trap_curve.png            # The main chart
+│   ├── accuracy_trap_results.json         # Pre-computed results (4,714 markets)
+│   ├── manifold_resolved_markets.csv      # Full dataset
+│   ├── polymarket_validation.py           # Real-money cross-validation
+│   ├── polymarket_validation_results.json # Polymarket tier summary
+│   └── zerve_notebook.py                  # Zerve canvas notebook (full pipeline)
 ├── api/
-│   ├── main.py                            # FastAPI — 6 endpoints
-│   ├── data_layer.py                      # Data access: CSV + JSON + live APIs
-│   └── models.py                          # Pydantic response models
+│   └── main_zerve.py                      # FastAPI on AWS Lambda — 7 endpoints, self-contained
 ├── app/
-│   └── streamlit_app.py                   # Interactive 5-tab dashboard
-├── generate_output.py                     # Diagnostic snapshot (writes output/report.md)
-├── SUBMISSION.md                          # Devpost description + video script
-└── requirements.txt
+│   └── zerve_deploy.py                    # Streamlit app hosted on Zerve
+├── deploy_lambda.sh                       # Redeploy the Lambda
+├── test_zerve_api.py                      # API health check (18/18 endpoints green)
+└── test_zerve_ui.py                       # Playwright UI test (screenshots + checks)
 ```
 
 ---
 
-## Quick Start
+## Running It Locally
 
 ```bash
-pip install -r requirements.txt
+pip install streamlit plotly pandas numpy requests scipy pytrends
 
-# Dashboard (standalone — no API server needed)
-streamlit run app/streamlit_app.py
+# Dashboard (reads from Lambda API automatically)
+streamlit run app/zerve_deploy.py
 
-# API server (optional, port 8000)
-uvicorn api.main:app --reload
+# Re-run the full analysis
+python analysis/accuracy_trap.py
 
-# Re-fetch Polymarket validation data
-python analysis/polymarket_validation.py
+# Test the live Lambda API
+python test_zerve_api.py
+# → Passed: 18/18
 ```
-
-The dashboard reads directly from CSV and JSON files. The FastAPI server is optional — the app falls back to local data if no server is running.
 
 ---
 
-## API
+## API Endpoints
+
+Hosted on AWS Lambda (Function URL, no auth required):
 
 | Endpoint | Description |
 |---|---|
 | `GET /health` | Health check |
-| `GET /accuracy-trap` | Full calibration curve from 1,535 markets |
-| `GET /lag?category=sports` | Calibration stats by category |
-| `GET /classify?topic=gamestop` | Classify retail vs institutional |
-| `GET /live-alerts` | Live retail flood signals (Polymarket + Google Trends) |
-| `GET /explain?topic=gamestop` | Full topic analysis with social signal |
+| `GET /accuracy-trap` | Full calibration curve + headline stats |
+| `GET /lag?category=sports` | Calibration breakdown by topic category |
+| `GET /classify?topic=gamestop` | Retail vs institutional classification |
+| `GET /markets` | 200 representative resolved markets (filterable) |
+| `GET /live-alerts` | Active Polymarket markets scored by social momentum |
+| `GET /explain?topic=gamestop` | Full topic analysis with signal explanation |
 
-**Example:**
 ```bash
-curl "http://localhost:8000/classify?topic=israel%20ceasefire"
-# → {"market_type": "retail_driven", "expected_lag_days": -3, "confidence": 0.68}
-
-curl "http://localhost:8000/accuracy-trap"
-# → {"headline": {"error_multiplier": 7.65, "n_markets_analyzed": 1535, ...}}
+# Try it
+curl "https://pil57aej3zgm64vkhospsca4dq0vvnff.lambda-url.us-east-1.on.aws/classify?topic=gamestop"
+# → {"market_type": "retail_driven", "expected_lag_days": -3, "confidence": 0.76, ...}
 ```
-
----
-
-## How It Works
-
-**Step 1 — Data:** 1,535 resolved binary markets from Manifold Markets (no auth required). Each market has a final community probability and a YES/NO outcome.
-
-**Step 2 — Calibration error:** `|resolutionProbability − outcome|` per market.
-
-**Step 3 — Market type:** `avg_bet = volume ÷ unique_bettors`. Quartile split:
-- Q1 (avg_bet < 78.5 Mana) → retail flood
-- Q4 (avg_bet > 368 Mana) → sophisticated
-
-**Step 4 — Causation proof:** OLS regression with log(avg_bet) and log(nr_bettors) as controls. log(avg_bet) is 9× more significant than crowd size (t = −19.40 vs −2.16).
-
-**Step 5 — Live detector:** For active Polymarket markets, 7-day Google Trends momentum flags markets where retail attention is rising before prices reprice.
 
 ---
 
 ## Data Sources
 
-- [Manifold Markets API](https://api.manifold.markets/v0) — 1,535 resolved binary markets, no auth required
-- [Polymarket Gamma API](https://gamma-api.polymarket.com) — closed markets for real-money validation
-- [Google Trends via pytrends](https://github.com/GeneralMills/pytrends) — 7-day social momentum
-- [Yahoo Finance via yfinance](https://github.com/ranaroussi/yfinance) — price history for GME/BTC cross-correlation
+- [Manifold Markets API](https://api.manifold.markets/v0) — 4,714 resolved binary markets, no auth required
+- [Polymarket Gamma API](https://gamma-api.polymarket.com) — live market monitoring + closed market validation
+- [Wikipedia Pageviews API](https://wikimedia.org/api/rest_v1/) — real-time social momentum (free, no key)
+- [Google Trends via pytrends](https://github.com/GeneralMills/pytrends) — 7-day search momentum (fallback)
+- [Yahoo Finance via yfinance](https://github.com/ranaroussi/yfinance) — GME/BTC price history for cross-correlation
 
 ---
 
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `API_BASE_URL` | `http://localhost:8000` | FastAPI base URL for the dashboard |
-| `ZERVE_NOTEBOOK_URL` | `https://app.zerve.ai/` | Link shown in the sidebar |
-
----
-
-Built for [ZerveHack 2026](https://zervehack.devpost.com/).
+*The Accuracy Trap is structural, measurable, and predictable.*
