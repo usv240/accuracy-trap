@@ -223,7 +223,7 @@ fig.show()
 # | Whale-bet (Sophisticated) | **3.2%** | 617 Mana |
 #
 # **Error multiplier: 7.65×** — retail-flooded markets are 7.65× less accurate.
-# Statistical significance: p < 0.001, Cohen's d = 1.285 (Large effect).
+# Statistical significance: p < 0.001, Cohen's d = 1.256 (Large effect).
 #
 # Cross-validation confirms: same attention level, different bet-size composition →
 # **4.56× difference in accuracy**. The driver is WHO bets, not how many watch.

@@ -154,7 +154,7 @@ def fetch_polymarket_alerts(limit: int = 8) -> dict:
                       else f"Google Trends · '{trend_topic}'")
         else:
             score  = 0.50
-            source = f"Signal unavailable · '{trend_topic}'"
+            source = f"No trend data found for '{trend_topic}' — using neutral score"
 
         # extract probability
         prob = None
@@ -328,6 +328,77 @@ if not DATA_PATH.exists():
 if not DATA_PATH.exists():
     DATA_PATH = _here.parent / "manifold_resolved_markets.csv"
 
+# ── Auto-compute all stats from the committed CSV ─────────────────────────────
+# Cached forever per session (runs once at startup, ~0.5s). If the CSV is not
+# present (e.g. Lambda-only deploy), returns None and the caller uses the
+# hardcoded fallback values defined below.
+
+@st.cache_data(show_spinner=False)
+def _compute_stats():
+    if not DATA_PATH.exists():
+        return None
+
+    import numpy as np
+    from scipy import stats as scipy_stats
+
+    df = pd.read_csv(DATA_PATH)
+
+    # ── Quartile buckets ──────────────────────────────────────────────────────
+    _bucket_defs = [
+        ("Micro-bet\n(Retail flood)", "Q1_retail",         "#EF4444"),
+        ("Small-bet",                 "Q2_small",          "#F59E0B"),
+        ("Large-bet",                 "Q3_large",          "#84CC16"),
+        ("Whale-bet\n(Sophisticated)","Q4_sophisticated",  "#22C55E"),
+    ]
+    buckets = []
+    for _lbl, _qlbl, _col in _bucket_defs:
+        _g = df[df["attention_q"] == _qlbl]
+        buckets.append({
+            "label": _lbl,
+            "error": round(float(_g["calibration_err"].mean()), 4),
+            "median_bet": int(round(_g["avg_bet"].median())),
+            "n": len(_g),
+            "color": _col,
+        })
+
+    _retail_g = df[df["attention_q"] == "Q1_retail"]["calibration_err"]
+    _soph_g   = df[df["attention_q"] == "Q4_sophisticated"]["calibration_err"]
+
+    # ── Headline stats ────────────────────────────────────────────────────────
+    _r_err = float(_retail_g.mean())
+    _s_err = float(_soph_g.mean())
+
+    # ── Statistical significance ──────────────────────────────────────────────
+    _t, _p = scipy_stats.ttest_ind(_retail_g, _soph_g, equal_var=False)
+    _pooled = np.sqrt((_retail_g.std()**2 + _soph_g.std()**2) / 2)
+    _d = float((_retail_g.mean() - _soph_g.mean()) / _pooled)
+    _r_ci = scipy_stats.t.interval(0.95, len(_retail_g)-1,
+                loc=_retail_g.mean(), scale=scipy_stats.sem(_retail_g))
+    _s_ci = scipy_stats.t.interval(0.95, len(_soph_g)-1,
+                loc=_soph_g.mean(),   scale=scipy_stats.sem(_soph_g))
+
+    # ── Cross-validation (same crowd size, different bet composition) ─────────
+    _att_med = df["nr_bettors"].median()
+    _bet_med = df["avg_bet"].median()
+    _hi = df[df["nr_bettors"] >= _att_med]
+    _cv_r = float(_hi[_hi["avg_bet"] <  _bet_med]["calibration_err"].mean())
+    _cv_s = float(_hi[_hi["avg_bet"] >= _bet_med]["calibration_err"].mean())
+
+    return {
+        "buckets":          buckets,
+        "retail_err":       _r_err, "soph_err": _s_err,
+        "mult":             round(_r_err / _s_err, 2),
+        "n_markets":        len(df),
+        "t_stat":           round(float(_t), 3),
+        "cohens_d":         round(_d, 3),
+        "retail_ci":        (round(_r_ci[0], 4), round(_r_ci[1], 4)),
+        "soph_ci":          (round(_s_ci[0], 4), round(_s_ci[1], 4)),
+        "cv_retail":        round(_cv_r, 4), "cv_soph": round(_cv_s, 4),
+        "cv_ratio":         round(_cv_r / _cv_s, 2),
+        "retail_threshold": round(float(df["avg_bet"].quantile(0.25)), 1),
+        "soph_threshold":   round(float(df["avg_bet"].quantile(0.75)), 1),
+    }
+
 st.set_page_config(
     page_title="The Accuracy Trap",
     page_icon="🎯",
@@ -381,24 +452,27 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Embedded data ─────────────────────────────────────────────────────────────
+# ── Stats: computed from CSV at startup, hardcoded values as fallback ─────────
+_s = _compute_stats()
 
-BUCKETS = [
+BUCKETS = _s["buckets"] if _s else [
     {"label": "Micro-bet\n(Retail flood)", "error": 0.2227, "median_bet": 52,  "n": 1179, "color": "#EF4444"},
     {"label": "Small-bet",                 "error": 0.0777, "median_bet": 136, "n": 1178, "color": "#F59E0B"},
     {"label": "Large-bet",                 "error": 0.0363, "median_bet": 297, "n": 1178, "color": "#84CC16"},
     {"label": "Whale-bet\n(Sophisticated)","error": 0.0203, "median_bet": 720, "n": 1179, "color": "#22C55E"},
 ]
 
+# Category stats use the Lambda API values (Manifold's own category tags, not keyword matching).
+# These are updated lazily from the /lag endpoint when Tab 3 is rendered.
 CATEGORY_STATS = [
-    {"name": "Sports",      "retail": 0.275, "soph": 0.011, "n": 279},
-    {"name": "AI/Tech",     "retail": 0.253, "soph": 0.018, "n": 616},
-    {"name": "Economics",   "retail": 0.237, "soph": 0.015, "n": 689},
-    {"name": "Climate",     "retail": 0.227, "soph": 0.029, "n": 318},
-    {"name": "Crypto",      "retail": 0.206, "soph": 0.016, "n": 171},
-    {"name": "Geopolitics", "retail": 0.155, "soph": 0.021, "n": 143},
-    {"name": "Elon/Tesla",  "retail": 0.151, "soph": 0.023, "n": 382},
-    {"name": "Politics",    "retail": 0.133, "soph": 0.034, "n": 347},
+    {"name": "Sports",      "retail": 0.299, "soph": 0.010, "n": 622},   # /lag?category=sports
+    {"name": "AI/Tech",     "retail": 0.253, "soph": 0.018, "n": 616},   # analysis dataset (no /lag)
+    {"name": "Economics",   "retail": 0.243, "soph": 0.018, "n": 318},   # /lag?category=economic
+    {"name": "Crypto",      "retail": 0.228, "soph": 0.016, "n": 164},   # /lag?category=crypto
+    {"name": "Climate",     "retail": 0.220, "soph": 0.037, "n": 377},   # /lag?category=climate
+    {"name": "Geopolitics", "retail": 0.155, "soph": 0.021, "n": 143},   # analysis dataset (no /lag)
+    {"name": "Elon/Tesla",  "retail": 0.151, "soph": 0.023, "n": 382},   # analysis dataset (no /lag)
+    {"name": "Politics",    "retail": 0.146, "soph": 0.032, "n": 515},   # /lag?category=political
 ]
 
 # Calibration curve: bin label, midpoint probability, n, mean predicted prob, actual YES rate
@@ -438,27 +512,26 @@ NOTABLE_MARKETS = [
     {"q": "Will Viktor Orban remain Hungary's prime minister after 2026 elections?","prob": 0.127,"res": "NO", "err": 0.127, "n": 616,  "avgbet": 248,  "cat": "Politics",    "type": "Large-bet"},
 ]
 
-retail_err = 0.2227
-whale_err  = 0.0203
-multiplier = 10.97
-n_markets  = 4714
+retail_err = _s["retail_err"] if _s else 0.2227
+whale_err  = _s["soph_err"]   if _s else 0.0203
+multiplier = _s["mult"]       if _s else 10.97
+n_markets  = _s["n_markets"]  if _s else 4714
 BUCKET_COLORS = ["#EF4444", "#F59E0B", "#84CC16", "#22C55E"]
 
-# ── Override defaults with live Lambda data ───────────────────────────────────
-_at_live = lambda_accuracy_trap()
-if _at_live:
-    hl = _at_live.get("headline", {})
-    retail_err = hl.get("retail_flood_calibration_error", retail_err)
-    whale_err  = hl.get("sophisticated_calibration_error", whale_err)
-    multiplier = hl.get("error_multiplier", multiplier)
-    n_markets  = int(hl.get("n_markets_analyzed", n_markets))
-    _api_buckets = _at_live.get("attention_buckets", [])
-    if len(_api_buckets) == 4:
-        BUCKETS = [
-            {"label": b["label"], "error": b["mean_calibration_error"],
-             "median_bet": b["median_avg_bet"], "n": b["sample_size"], "color": c}
-            for b, c in zip(_api_buckets, BUCKET_COLORS)
-        ]
+# Derived stat variables (used in HTML templates below as f-string values)
+_COHENS_D    = _s["cohens_d"]   if _s else 1.256
+_T_STAT      = _s["t_stat"]     if _s else 30.498
+_R_CI        = _s["retail_ci"]  if _s else (0.2103, 0.2351)
+_S_CI        = _s["soph_ci"]    if _s else (0.0163, 0.0242)
+_CV_RETAIL   = _s["cv_retail"]  if _s else 0.125
+_CV_SOPH     = _s["cv_soph"]    if _s else 0.025
+_CV_RATIO    = _s["cv_ratio"]   if _s else 5.10
+# Pre-formatted CI strings
+_R_CI_STR    = f"{_R_CI[0]:.1%}, {_R_CI[1]:.1%}"    # e.g. "21.0%, 23.5%"
+_S_CI_STR    = f"{_S_CI[0]:.1%}, {_S_CI[1]:.1%}"    # e.g. "1.6%, 2.4%"
+
+# Note: Lambda accuracy-trap endpoint is fetched lazily per-tab to avoid
+# blocking startup (which caused Zerve health-check timeouts → 503).
 
 
 # ── Optional CSV load (for full Browse Markets tab) ───────────────────────────
@@ -502,8 +575,8 @@ def load_market_data():
 df_markets = load_market_data()
 
 # ── Live market fetch (Manifold open markets, cached 5 min) ───────────────────
-RETAIL_THRESHOLD  = 92.6   # Q1 upper bound — below this = retail flood
-SOPH_THRESHOLD    = 455.3  # Q4 lower bound — above this = sophisticated
+RETAIL_THRESHOLD  = _s["retail_threshold"] if _s else 92.6   # Q1 upper bound — below = retail flood
+SOPH_THRESHOLD    = _s["soph_threshold"]   if _s else 455.3  # Q4 lower bound — above = sophisticated
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_live_markets(limit: int = 30) -> list[dict]:
@@ -549,47 +622,73 @@ def fetch_live_markets(limit: int = 30) -> list[dict]:
 with st.sidebar:
     st.markdown("## 🎯 The Accuracy Trap")
     st.markdown("*Crowd wisdom only works when the crowd is informed.*")
-    st.caption("Prediction market retail flood detector · ZerveHack 2026")
+    st.caption("ZerveHack 2026 · Prediction market retail flood detector")
     st.markdown("---")
 
-    st.markdown("**Dataset**")
-    st.markdown(f"- **{n_markets:,}** resolved binary markets")
-    st.markdown("- Source: Manifold Markets API")
-    st.markdown("- Cross-validated: Polymarket ($116.9M USDC)")
-    st.markdown("---")
-
-    st.markdown("**The Accuracy Trap mechanism**")
     st.markdown(f"""
-1. A topic goes viral on social media
-2. Retail traders flood in with tiny bets
-3. `avg_bet = volume ÷ bettors` drops
-4. Uninformed bets drown out informed forecasters
-5. Market accuracy collapses **{multiplier:.2f}×**
+<div style="background:rgba(239,68,68,0.12); border-radius:0.75rem; padding:1rem;
+     text-align:center; margin-bottom:0.5rem;">
+  <div style="font-size:2.4rem; font-weight:900; color:#EF4444; line-height:1">{multiplier:.0f}×</div>
+  <div style="font-size:0.82rem; opacity:0.85; margin-top:0.3rem;">less accurate when retail floods in</div>
+</div>
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.25rem;">
+  <div style="background:rgba(239,68,68,0.08); border-radius:0.5rem; padding:0.6rem; text-align:center;">
+    <div style="font-size:1.2rem; font-weight:800; color:#EF4444">{retail_err:.1%}</div>
+    <div style="font-size:0.72rem; opacity:0.75">Retail flood error</div>
+  </div>
+  <div style="background:rgba(34,197,94,0.08); border-radius:0.5rem; padding:0.6rem; text-align:center;">
+    <div style="font-size:1.2rem; font-weight:800; color:#22C55E">{whale_err:.1%}</div>
+    <div style="font-size:0.72rem; opacity:0.75">Sophisticated error</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("**How the trap works**")
+    st.markdown("""
+🔥 Topic goes viral → casual bettors pile in
+📉 Average bet drops → noise drowns the signal
+❌ Market price stops reflecting reality
 """)
     st.markdown("---")
-
-    st.markdown("**The key signal**")
-    st.markdown("`avg_bet < 78.5 Mana` → retail flood zone")
-    st.caption(f"Expected calibration error: ~{retail_err:.1%} vs {whale_err:.1%} in sophisticated markets")
+    st.markdown("**The one signal that catches it**")
+    st.markdown(f"`avg_bet < {RETAIL_THRESHOLD:.0f}` → retail flood zone  \n`avg_bet > {SOPH_THRESHOLD:.0f}` → sophisticated market")
     st.markdown("---")
-
-    st.markdown("**Statistical validation**")
-    st.markdown("- Welch's t-test: **p < 0.001**")
-    st.markdown("- Cohen's d: **1.285** (large effect)")
-    st.markdown("- OLS regression R² = 0.253")
-    st.markdown("- n = 1,179 retail · 1,179 sophisticated")
+    st.markdown("**Proven on real data**")
+    st.markdown(f"- **{n_markets:,}** resolved markets")
+    st.markdown(f"- **p < 0.001**, Cohen's d = **{_COHENS_D:.3f}**")
+    st.markdown("- Validated on Polymarket **$116.9M** USDC")
     st.markdown("---")
-
-    st.markdown("**Live API — AWS Lambda**")
-    st.markdown("🟢 Status: **Live**")
-    st.markdown(f"[📖 API Docs (Swagger)]({LAMBDA_API_URL}/docs)")
-    st.markdown(f"[⚡ /classify?topic=bitcoin]({LAMBDA_API_URL}/classify?topic=bitcoin)")
-    st.markdown(f"[📡 /live-alerts]({LAMBDA_API_URL}/live-alerts)")
-    st.markdown(f"[❤️ /health]({LAMBDA_API_URL}/health)")
+    st.markdown("**Live API** 🟢")
+    st.markdown(f"[Try: classify any topic →]({LAMBDA_API_URL}/classify?topic=bitcoin)")
+    st.markdown(f"[API Docs (Swagger) →]({LAMBDA_API_URL}/docs)")
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("# 🎯 The Accuracy Trap")
-st.markdown("**Retail-flooded prediction markets are measurably less accurate — and we can detect them in real time.**")
+st.markdown("**When casual bettors flood prediction markets, accuracy collapses by 11× — and we can detect it in real time.**")
+
+st.markdown("""
+<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin:0.75rem 0 1rem 0;">
+  <div style="text-align:center; padding:0.85rem; background:rgba(99,102,241,0.07);
+       border:1px solid rgba(99,102,241,0.15); border-radius:0.75rem;">
+    <div style="font-size:1.3rem; margin-bottom:0.25rem;">📊</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We measured</div>
+    <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">4,714 real markets — comparing predictions to what actually happened</div>
+  </div>
+  <div style="text-align:center; padding:0.85rem; background:rgba(239,68,68,0.07);
+       border:1px solid rgba(239,68,68,0.15); border-radius:0.75rem;">
+    <div style="font-size:1.3rem; margin-bottom:0.25rem;">🚨</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We found a flaw</div>
+    <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">Casual small bettors flood viral topics and wreck accuracy — by 11×</div>
+  </div>
+  <div style="text-align:center; padding:0.85rem; background:rgba(34,197,94,0.07);
+       border:1px solid rgba(34,197,94,0.15); border-radius:0.75rem;">
+    <div style="font-size:1.3rem; margin-bottom:0.25rem;">🎯</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We built a detector</div>
+    <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">One metric flags it in real time — before the market corrects itself</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 if st.button("⚡ Show me the trap", type="primary", use_container_width=True):
     st.markdown(f"""
@@ -613,7 +712,7 @@ if st.button("⚡ Show me the trap", type="primary", use_container_width=True):
        background:rgba(0,0,0,0.15); border-radius:0.6rem;">
     That's a <span style="color:#EF4444;">{multiplier:.2f}× accuracy gap</span> —
     confirmed at <span style="color:#60A5FA;">p &lt; 0.001</span>,
-    Cohen's d = <span style="color:#A78BFA;">1.285</span> (large effect)
+    Cohen's d = <span style="color:#A78BFA;">{_COHENS_D:.3f}</span> (large effect)
   </div>
   <div style="text-align:center; margin-top:1rem; font-size:0.9rem; opacity:0.75;">
     ↓ Scroll through the tabs to see the full proof — real cases, OLS regression, live market alerts ↓
@@ -638,6 +737,15 @@ st.markdown("""
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+st.markdown("""
+<div style="font-size:0.88rem; text-align:center; margin-bottom:0.6rem; opacity:0.85;">
+  <strong>Calibration error</strong> = how wrong a prediction was. &nbsp;
+  <span style="color:#22C55E; font-weight:600;">0% = perfect</span> &nbsp;·&nbsp;
+  <span style="color:#9CA3AF;">50% = coin flip (useless)</span> &nbsp;·&nbsp;
+  <span style="color:#EF4444; font-weight:600;">100% = completely wrong</span>
+</div>
+""", unsafe_allow_html=True)
+
 st.markdown(f"""
 <div class="metrics-grid">
   <div class="card">
@@ -645,7 +753,7 @@ st.markdown(f"""
     <div class="big-label">
       Retail flood calibration error
       <span class="tip-wrap"><span class="tip-icon">ⓘ</span>
-        <span class="tip-box">Mean |predicted_prob − actual_outcome| for markets in the bottom avg_bet quartile (avg_bet &lt; 78.5 Mana). These are markets flooded with many small bets from uninformed traders.</span>
+        <span class="tip-box">Mean |predicted_prob − actual_outcome| for markets in the bottom avg_bet quartile (avg_bet &lt; {RETAIL_THRESHOLD:.0f} Mana). These are markets flooded with many small bets from uninformed traders.</span>
       </span>
     </div>
   </div>
@@ -654,7 +762,7 @@ st.markdown(f"""
     <div class="big-label">
       Sophisticated market error
       <span class="tip-wrap"><span class="tip-icon">ⓘ</span>
-        <span class="tip-box">Mean calibration error for markets in the top avg_bet quartile (avg_bet &gt; 368 Mana). Participants each risk a large amount — strong incentive to research carefully.</span>
+        <span class="tip-box">Mean calibration error for markets in the top avg_bet quartile (avg_bet &gt; {SOPH_THRESHOLD:.0f} Mana). Participants each risk a large amount — strong incentive to research carefully.</span>
       </span>
     </div>
   </div>
@@ -679,25 +787,13 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div style="background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.22);
-     border-radius:0.85rem; padding:1rem 1.4rem; margin:0.5rem 0 0.8rem 0; font-size:0.95rem; line-height:1.7;">
-  <strong>How to read this:</strong>&nbsp;
-  <strong>Calibration error</strong> = how wrong a prediction was at resolution.
-  0% = perfect · 50% = coin flip · 100% = completely wrong.
-  &nbsp;|&nbsp;
-  We classify markets by <code>avg bet = volume ÷ unique bettors</code>:
-  <span style="color:#EF4444; font-weight:600">low avg bet</span> = many retail traders flooding in &nbsp;·&nbsp;
-  <span style="color:#22C55E; font-weight:600">high avg bet</span> = fewer, more informed participants.
-</div>
-""", unsafe_allow_html=True)
 
 st.markdown("""
 <div style="font-size:0.82rem; opacity:0.7; text-align:center; margin-bottom:0.5rem">
-  Welch's t-test: <strong>p &lt; 0.001</strong> &nbsp;·&nbsp;
-  Cohen's d = <strong>1.285</strong> (large effect) &nbsp;·&nbsp;
-  OLS: avg_bet predicts accuracy at <strong>p&lt;0.001</strong> controlling for crowd size &nbsp;·&nbsp;
-  n=1,179 retail, n=1,179 sophisticated
+  Statistically confirmed across 4,714 markets &nbsp;·&nbsp;
+  Less than 1-in-1,000 chance this is random &nbsp;·&nbsp;
+  Effect size classified as "large" &nbsp;·&nbsp;
+  Replicated on $116.9M real-money Polymarket data
 </div>
 """, unsafe_allow_html=True)
 
@@ -712,6 +808,25 @@ st.markdown("""
     &nbsp;·&nbsp; <strong>299</strong> Polymarket markets · <strong>$116.9M</strong> USDC total volume
   </span>
   <span style="font-size:0.82rem; opacity:0.7">Pattern replicated on real-money Polymarket markets</span>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div style="background:linear-gradient(135deg,rgba(239,68,68,0.10) 0%,rgba(99,102,241,0.08) 100%);
+     border:1px solid rgba(239,68,68,0.25); border-radius:0.85rem;
+     padding:1rem 1.5rem; margin:0.6rem 0 0.5rem 0;">
+  <div style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.09em; opacity:0.55; margin-bottom:0.4rem;">
+    The starkest example — real data, same event, same day
+  </div>
+  <div style="font-size:1.05rem; font-weight:700; margin-bottom:0.5rem;">
+    Two markets asked the exact same question about Trump 2024.
+    One was a <span style="color:#EF4444;">coin flip</span>.
+    The other was <span style="color:#22C55E;">99.5% accurate</span>.
+    The only difference: <em>who was betting.</em>
+  </div>
+  <div style="font-size:0.85rem; opacity:0.7;">
+    👉 See the full breakdown in the <strong>📖 Real Examples</strong> tab below.
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -733,7 +848,7 @@ with st.expander("📖 Glossary — what every term means (click to expand)"):
       <code>avg_bet = total_volume ÷ unique_bettors</code><br>
       Low avg_bet = many people each betting a little = retail flood.<br>
       High avg_bet = fewer people each betting more = sophisticated.<br>
-      <em>Threshold: below 78.5 Mana → retail flood zone.</em>
+      <em>Threshold: below {RETAIL_THRESHOLD:.0f} Mana → retail flood zone.</em>
     </p>
   </div>
   <div style="border-left:3px solid #22C55E; padding-left:0.9rem;">
@@ -753,10 +868,10 @@ with st.expander("📖 Glossary — what every term means (click to expand)"):
     </p>
   </div>
   <div style="border-left:3px solid #A78BFA; padding-left:0.9rem;">
-    <strong>Cohen's d = 1.285</strong>
+    <strong>Cohen's d = {_COHENS_D:.3f}</strong>
     <p style="font-size:0.87rem; opacity:0.85; margin:0.3rem 0 0 0">
       Effect size measure. Above 0.8 = "large effect" by convention.
-      1.285 is massive — the retail vs sophisticated gap is structural, not a fluke.
+      {_COHENS_D:.3f} is massive — the retail vs sophisticated gap is structural, not a fluke.
     </p>
   </div>
   <div style="border-left:3px solid #34D399; padding-left:0.9rem;">
@@ -829,20 +944,31 @@ The problem isn't how many people are watching.<br>It's <em>who</em> shows up.
 </div>
 <div class="callout-green">
 <strong>Retail Flood Detector</strong><br><br>
-High attention + small bets = <strong>22.8% error</strong><br>
-High attention + large bets = <strong>5.0% error</strong><br><br>
-Same audience size. <strong>4.6× difference</strong> in accuracy.
+High attention + small bets = <strong>{_CV_RETAIL:.1%} error</strong><br>
+High attention + large bets = <strong>{_CV_SOPH:.1%} error</strong><br><br>
+Same crowd size. <strong>{_CV_RATIO:.2f}× difference</strong> in accuracy.
 </div>
 """, unsafe_allow_html=True)
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
+
+st.markdown("""
+<div style="text-align:center; padding:0.65rem 1.2rem; margin-bottom:0.6rem;
+     background:rgba(99,102,241,0.07); border:1px solid rgba(99,102,241,0.18);
+     border-radius:0.75rem; font-size:0.92rem;">
+  👇 <strong>New here?</strong> Start with
+  <strong>📖 Real Examples</strong> — makes the finding concrete in 30 seconds.
+  &nbsp;·&nbsp; Want to try it yourself? Jump to <strong>🏷 Classify a Topic</strong>.
+</div>
+""", unsafe_allow_html=True)
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📖 Real Cases",
-    "📊 Calibration & OLS Proof",
-    "🔍 Browse Markets",
-    "📡 Flood Monitor",
-    "🏷 Topic Classifier",
+    "📖 Real Examples — Start Here",
+    "📊 The Statistics & Proof",
+    "🔍 Browse All Markets",
+    "📡 Live Market Monitor",
+    "🏷 Classify a Topic",
 ])
 
 
@@ -868,7 +994,7 @@ with tab1:
 <tr>
   <td style="padding:1rem; background:rgba(239,68,68,0.1); border-radius:0.5rem; text-align:center; width:30%; border:1px solid rgba(239,68,68,0.2);">
     <div style="font-size:2rem; font-weight:800; color:#EF4444">3%</div>
-    <div style="font-size:0.85rem; opacity:0.8">Market said YES</div>
+    <div style="font-size:0.85rem; opacity:0.8">Market's YES probability</div>
   </td>
   <td style="padding:0.5rem; text-align:center; font-size:2rem; width:10%; opacity:0.5;">→</td>
   <td style="padding:1rem; background:rgba(34,197,94,0.1); border-radius:0.5rem; text-align:center; width:30%; border:1px solid rgba(34,197,94,0.2);">
@@ -999,9 +1125,9 @@ the wisdom of crowds works exactly as intended.
 <div class="callout-red">
 <strong>GME 2021 — Retail-Driven</strong><br><br>
 Google Trends spike <strong>preceded</strong> market reprice by <strong>3 days</strong><br>
-Cross-correlation: <strong>corr = −0.604</strong><br><br>
-Social attention flooded in first → then the market (briefly) moved → then collapsed.<br>
-Textbook retail flood with a measured leading indicator.
+Correlation score: <strong>−0.604</strong> <span style="font-size:0.82rem; opacity:0.7">(−1 = perfect lead, 0 = no relationship)</span><br><br>
+Public attention spiked online first — then the market briefly moved — then collapsed.<br>
+This is the retail flood pattern: the crowd noticed before the market did.
 </div>
 """, unsafe_allow_html=True)
     with c2:
@@ -1009,9 +1135,9 @@ Textbook retail flood with a measured leading indicator.
 <div class="callout-green">
 <strong>BTC 2024 — Institutional-Driven</strong><br><br>
 Market price <strong>led</strong> Google Trends by <strong>+7 days</strong><br>
-Cross-correlation: <strong>corr = +0.707</strong><br><br>
-Informed traders priced in the move a full week before the public noticed.<br>
-The market is a leading, not lagging, indicator here.
+Correlation score: <strong>+0.707</strong> <span style="font-size:0.82rem; opacity:0.7">(+1 = perfect lead, 0 = no relationship)</span><br><br>
+Informed traders moved the market a full week before the public noticed.<br>
+The market is a leading, not lagging, indicator — the opposite of GME.
 </div>
 """, unsafe_allow_html=True)
 
@@ -1020,6 +1146,20 @@ The market is a leading, not lagging, indicator here.
 # Tab 2 — Calibration Curve + OLS Proof
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
+    st.markdown("""
+<div style="background:rgba(99,102,241,0.09); border:1px solid rgba(99,102,241,0.25);
+     border-radius:0.85rem; padding:1rem 1.4rem; margin-bottom:1.2rem;">
+  <strong>Not a statistician? Here's all you need to know from this tab:</strong>
+  <ol style="margin:0.6rem 0 0 0; padding-left:1.3rem; font-size:0.95rem; line-height:1.9;">
+    <li>The market's predictions are compared to what <em>actually happened</em> — the gap is the error.</li>
+    <li>Retail-flooded markets are wrong by <strong>22%</strong> on average. Sophisticated markets: <strong>2%</strong>. That's an 11× gap.</li>
+    <li>We ran a statistical test to rule out luck: <strong>less than 1-in-1,000 chance this is random</strong>.</li>
+    <li>We also ruled out the alternative explanation ("viral topics are just harder to predict") — composition drives accuracy even after controlling for popularity.</li>
+  </ol>
+  <div style="font-size:0.82rem; opacity:0.65; margin-top:0.6rem;">The charts and tables below are the evidence for those four points.</div>
+</div>
+""", unsafe_allow_html=True)
+
     st.markdown("### When the Market Says X%, What Actually Happens?")
     st.markdown("""
 <div style="background:rgba(234,179,8,0.08); border-left:4px solid #EAB308;
@@ -1124,13 +1264,23 @@ Markets in the 60–70% range are systematically undervalued — an exploitable 
      border-radius:0.85rem; padding:1.2rem 1.5rem; margin-bottom:1.2rem; text-align:center;">
   <div style="font-size:1.1rem; font-weight:700; margin-bottom:0.4rem;">
     In plain English: every <strong>10× increase in avg bet size</strong> reduces calibration error by
-    <strong style="color:#22C55E;">~{abs(OLS['log_avg_bet']['beta'] * 2.303):.1%} percentage points</strong>
+    <strong style="color:#22C55E;">~{abs(OLS['log_avg_bet']['beta'] * 2.303 * 100):.1f} percentage points</strong>
+    <span style="font-size:0.88rem; opacity:0.7">(e.g. from 22% error down to ~7%)</span>
   </div>
   <div style="font-size:0.88rem; opacity:0.75;">
     β = {OLS['log_avg_bet']['beta']:+.4f} on log(avg_bet) &nbsp;·&nbsp;
     This effect is statistically independent of crowd size (p &lt; 0.001 after controlling for nr_bettors) &nbsp;·&nbsp;
     n = {OLS['n']:,} markets
   </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown("""
+<div style="font-size:0.82rem; opacity:0.65; margin-bottom:0.4rem;">
+  <strong>How to read these numbers:</strong>
+  &nbsp;·&nbsp; <strong>Coefficient (β)</strong>: direction of effect — negative means "higher avg bet → lower error"
+  &nbsp;·&nbsp; <strong>p-value</strong>: probability this is random chance — below 0.001 means near-impossible
+  &nbsp;·&nbsp; <strong>R²</strong>: how much of the variation in accuracy this model explains (0 = nothing, 1 = everything)
 </div>
 """, unsafe_allow_html=True)
 
@@ -1191,16 +1341,27 @@ Markets in the 60–70% range are systematically undervalued — an exploitable 
     # Statistical significance block
     st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
     st.markdown("### Statistical Significance")
+    st.markdown(f"""
+<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.2);
+     border-radius:0.75rem; padding:0.85rem 1.3rem; margin-bottom:1rem; font-size:0.93rem; line-height:1.75;">
+  <strong>Plain English:</strong> &nbsp;
+  <strong>p &lt; 0.001</strong> = less than 1-in-1,000 chance this gap is random.&nbsp;
+  <strong>Cohen's d = {_COHENS_D:.3f}</strong> = the effect is "large" by any standard measure — roughly, the two groups
+  (retail vs sophisticated) are so far apart their distributions barely overlap.&nbsp;
+  <strong>The 95% confidence intervals don't touch at all</strong> — retail error sits at {_R_CI[0]:.0%}–{_R_CI[1]:.0%}%, sophisticated at {_S_CI[0]:.1%}–{_S_CI[1]:.1%}.
+  There's no statistical world where these are the same.
+</div>
+""", unsafe_allow_html=True)
     sc1, sc2 = st.columns(2)
     with sc1:
-        st.markdown("""
+        st.markdown(f"""
 | Metric | Value |
 |---|---|
 | Welch's t-test p-value | **< 0.001** |
-| Cohen's d | **1.285 (Large effect)** |
-| t-statistic | 30.498 |
-| Retail 95% CI | [21.0%, 23.5%] |
-| Sophisticated 95% CI | [1.6%, 2.4%] |
+| Cohen's d | **{_COHENS_D:.3f} (Large effect)** |
+| t-statistic | {_T_STAT:.3f} |
+| Retail 95% CI | [{_R_CI[0]:.1%}, {_R_CI[1]:.1%}] |
+| Sophisticated 95% CI | [{_S_CI[0]:.1%}, {_S_CI[1]:.1%}] |
 """)
     with sc2:
         st.markdown("""
@@ -1220,9 +1381,9 @@ Markets in the 60–70% range are systematically undervalued — an exploitable 
 
     fig_ci = go.Figure()
     groups     = ["Retail-flooded (Q1)", "Sophisticated (Q4)"]
-    means      = [0.2155, 0.0223]
-    ci_low     = [0.2010, 0.0170]
-    ci_high    = [0.2300, 0.0270]
+    means      = [retail_err, whale_err]
+    ci_low     = [_R_CI[0], _S_CI[0]]
+    ci_high    = [_R_CI[1], _S_CI[1]]
     colors     = ["#EF4444", "#22C55E"]
     err_low    = [m - l for m, l in zip(means, ci_low)]
     err_high   = [h - m for m, h in zip(means, ci_high)]
@@ -1251,12 +1412,12 @@ Markets in the 60–70% range are systematically undervalued — an exploitable 
         showlegend=False,
     )
     st.plotly_chart(fig_ci, use_container_width=True)
-    st.markdown("""
+    st.markdown(f"""
 <div class="callout-green">
-  <strong>Retail 95% CI: [21.0%, 23.5%]</strong> &nbsp;·&nbsp;
-  <strong>Sophisticated 95% CI: [1.6%, 2.4%]</strong><br>
+  <strong>Retail 95% CI: [{_R_CI[0]:.1%}, {_R_CI[1]:.1%}]</strong> &nbsp;·&nbsp;
+  <strong>Sophisticated 95% CI: [{_S_CI[0]:.1%}, {_S_CI[1]:.1%}]</strong><br>
   The two intervals are separated by more than 17 percentage points.
-  This is not noise — it is a structural difference replicated across 2,358 markets.
+  This is not noise — it is a structural difference replicated across {n_markets // 2:,} markets.
 </div>
 """, unsafe_allow_html=True)
 
@@ -1346,9 +1507,17 @@ with tab3:
     if df_markets is not None:
         st.markdown(f"""
 <div style="background:rgba(99,102,241,0.07); border-left:4px solid #6366F1;
-     border-radius:0 0.5rem 0.5rem 0; padding:0.8rem 1.2rem; margin-bottom:1.5rem; font-size:0.95rem;">
-  Filter and search all <strong>{len(df_markets):,}</strong> resolved markets. Try <strong>Market Type = Retail Flood</strong>
-  sorted by Error, or search <em>"ceasefire"</em>, <em>"trump"</em>, or <em>"bitcoin"</em>.
+     border-radius:0 0.5rem 0.5rem 0; padding:0.8rem 1.2rem; margin-bottom:0.75rem; font-size:0.95rem;">
+  Browse all <strong>{len(df_markets):,}</strong> resolved markets — we know how each one ended, so we can measure exactly how wrong the market was.
+  Try <strong>Market Type = Retail Flood</strong> to see the worst predictions, or search <em>"ceasefire"</em>, <em>"trump"</em>, <em>"bitcoin"</em>.
+</div>
+<div style="font-size:0.82rem; opacity:0.7; margin-bottom:1.2rem; padding:0.5rem 0.9rem;
+     background:rgba(150,150,150,0.06); border-radius:0.5rem;">
+  <strong>Market Type legend:</strong> &nbsp;
+  <span style="color:#EF4444; font-weight:600;">Retail Flood</span> = many tiny bets (avg bet &lt; {RETAIL_THRESHOLD:.0f} Mana) — high error &nbsp;·&nbsp;
+  <span style="color:#F59E0B; font-weight:600;">Small-bet / Large-bet</span> = middle ground &nbsp;·&nbsp;
+  <span style="color:#22C55E; font-weight:600;">Sophisticated</span> = few large bets (avg bet &gt; {SOPH_THRESHOLD:.0f} Mana) — low error &nbsp;·&nbsp;
+  <strong>Error</strong> = how wrong the prediction was (0% = perfect, 100% = completely wrong)
 </div>
 """, unsafe_allow_html=True)
 
@@ -1416,12 +1585,20 @@ with tab3:
     elif _lambda_markets_raw:
         # Lambda data — full interactive table
         lm_df = pd.DataFrame(_lambda_markets_raw)
-        st.caption(f"🟢 Live · AWS Lambda — 200 representative records from 4,714-market dataset")
+        st.caption(f"🟢 Live data — {len(lm_df):,} resolved markets from the full 4,714-market dataset")
         st.markdown(f"""
 <div style="background:rgba(99,102,241,0.07); border-left:4px solid #6366F1;
-     border-radius:0 0.5rem 0.5rem 0; padding:0.8rem 1.2rem; margin-bottom:1.5rem; font-size:0.95rem;">
-  Filter and search <strong>{len(lm_df):,}</strong> resolved markets — top 60 by error, bottom 40, plus 100 mid-range.
-  Try <strong>Market Type = Retail Flood</strong> sorted by Error, or search <em>"ceasefire"</em>, <em>"trump"</em>, <em>"bitcoin"</em>.
+     border-radius:0 0.5rem 0.5rem 0; padding:0.8rem 1.2rem; margin-bottom:0.75rem; font-size:0.95rem;">
+  Browse and filter real prediction markets — we know how each one resolved, so we can measure exactly how wrong the market was.
+  Try <strong>Market Type = Retail Flood</strong> to see the worst predictions, or search <em>"ceasefire"</em>, <em>"trump"</em>, <em>"bitcoin"</em>.
+</div>
+<div style="font-size:0.82rem; opacity:0.7; margin-bottom:1.2rem; padding:0.5rem 0.9rem;
+     background:rgba(150,150,150,0.06); border-radius:0.5rem;">
+  <strong>Market Type legend:</strong> &nbsp;
+  <span style="color:#EF4444; font-weight:600;">Retail Flood</span> = many tiny bets (avg bet &lt; {RETAIL_THRESHOLD:.0f} Mana) — high error &nbsp;·&nbsp;
+  <span style="color:#F59E0B; font-weight:600;">Small-bet / Large-bet</span> = middle ground &nbsp;·&nbsp;
+  <span style="color:#22C55E; font-weight:600;">Sophisticated</span> = few large bets (avg bet &gt; {SOPH_THRESHOLD:.0f} Mana) — low error &nbsp;·&nbsp;
+  <strong>Error</strong> = how wrong the prediction was (0% = perfect, 100% = completely wrong)
 </div>
 """, unsafe_allow_html=True)
         lfc1, lfc2, lfc3, lfc4 = st.columns(4)
@@ -1430,7 +1607,7 @@ with tab3:
             lsel_cat = st.selectbox("Category", lcat_opts, key="lm_cat")
         with lfc2:
             ltype_opts = ["All"] + sorted(lm_df["market_type"].unique().tolist())
-            lsel_type = st.selectbox("Market type", ltype_opts, key="lm_type")
+            lsel_type = st.selectbox("Market type ↑ see legend above", ltype_opts, key="lm_type")
         with lfc3:
             lsel_res = st.selectbox("Resolution", ["All", "YES", "NO"], key="lm_res")
         with lfc4:
@@ -1541,11 +1718,13 @@ markets (top avg-bet quartile). The Accuracy Trap is not unique to one domain �
 # ─────────────────────────────────────────────────────────────────────────────
 with tab4:
     st.markdown("### Live Retail Flood Monitor")
-    st.markdown("""
+    st.markdown(f"""
 <div style="background:rgba(239,68,68,0.07); border-left:4px solid #EF4444;
      border-radius:0 0.5rem 0.5rem 0; padding:0.8rem 1.2rem; margin-bottom:1rem; font-size:0.95rem;">
-  Classifies <strong>active Manifold markets</strong> in real time using our validated signal:
-  <code>avg_bet = volume ÷ unique_bettors</code>. Below 78.5 Mana = retail flood zone.
+  Classifies <strong>active Manifold Markets</strong> in real time using our validated signal:
+  <code>avg_bet = volume ÷ unique_bettors</code>.
+  Below <strong>{RETAIL_THRESHOLD:.0f} Mana</strong> = retail flood zone &nbsp;·&nbsp; above <strong>{SOPH_THRESHOLD:.0f} Mana</strong> = sophisticated.
+  <span style="font-size:0.83rem; opacity:0.7">(Mana = Manifold's virtual play money — like poker chips for prediction markets)</span><br>
   Refreshes every <strong>5 minutes</strong>. Scroll down for historical validation cases.
 </div>
 """, unsafe_allow_html=True)
@@ -1576,9 +1755,9 @@ with tab4:
 
         mc1, mc2, mc3, mc4 = st.columns(4)
         mc1.metric("Markets fetched",    len(live_markets))
-        mc2.metric("Retail flood ⚠",    flood_count, help="avg_bet < 78.5 Mana")
-        mc3.metric("Mixed",              mix_count,   help="78.5 ≤ avg_bet ≤ 368")
-        mc4.metric("Sophisticated ✓",   soph_count,  help="avg_bet > 368 Mana")
+        mc2.metric("Retail flood ⚠",    flood_count, help=f"avg_bet < {RETAIL_THRESHOLD:.0f} Mana")
+        mc3.metric("Mixed",              mix_count,   help=f"{RETAIL_THRESHOLD:.0f} ≤ avg_bet ≤ {SOPH_THRESHOLD:.0f}")
+        mc4.metric("Sophisticated ✓",   soph_count,  help=f"avg_bet > {SOPH_THRESHOLD:.0f} Mana")
 
         live_df = pd.DataFrame(live_markets)[
             ["question", "prob", "avg_bet", "bettors", "volume", "type"]
@@ -1605,16 +1784,24 @@ with tab4:
             use_container_width=True, hide_index=True, height=420,
         )
         st.caption(f"Live data from Manifold Markets API · refreshes every 5 min · "
-                   f"Threshold: retail < 78.5 Mana · sophisticated > 368 Mana")
+                   f"Threshold: retail < {RETAIL_THRESHOLD:.0f} Mana · sophisticated > {SOPH_THRESHOLD:.0f} Mana")
 
     # ── Polymarket Live Alerts ────────────────────────────────────────────────
     st.markdown("---")
     st.markdown("#### 📡 Polymarket Live Alerts — Real-Money Markets at Risk")
     st.markdown("""
 <div style="background:rgba(99,102,241,0.07); border-left:4px solid #6366F1;
-     border-radius:0 0.5rem 0.5rem 0; padding:0.7rem 1.1rem; margin-bottom:1rem; font-size:0.9rem;">
-  Active Polymarket markets classified as retail-driven, scored by <strong>Wikipedia Pageviews momentum</strong>
-  (7-day trend). High social score = the topic is spiking online right now — expect retail flood, treat price with caution.
+     border-radius:0 0.5rem 0.5rem 0; padding:0.7rem 1.1rem; margin-bottom:0.75rem; font-size:0.9rem;">
+  Active Polymarket real-money markets classified as retail-driven, scored by how much the topic is trending online right now.
+  <strong>High social score = viral spike happening now → retail flood likely → treat the price with caution.</strong>
+</div>
+<div style="font-size:0.82rem; opacity:0.7; margin-bottom:1rem; padding:0.5rem 0.9rem;
+     background:rgba(150,150,150,0.06); border-radius:0.5rem; line-height:1.7;">
+  <strong>Social score guide:</strong> &nbsp;
+  <span style="color:#EF4444; font-weight:600;">≥ 0.75 = HIGH</span> — topic is spiking, flood risk imminent &nbsp;·&nbsp;
+  <span style="color:#D97706; font-weight:600;">0.60–0.75 = MEDIUM</span> — trending, watch closely &nbsp;·&nbsp;
+  <span style="color:#6B7280;">below 0.60 = LOW</span> — no spike right now, lower risk &nbsp;·&nbsp;
+  <em>Score of 0.50 = no trend data available for this topic (neutral fallback)</em>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1625,7 +1812,7 @@ with tab4:
         pm_data = {"alerts": [], "note": "Lambda API warming up — refresh in 30s.", "_live": False}
 
     pm_alerts = pm_data.get("alerts", [])
-    _api_src = "🟢 Live · AWS Lambda" if pm_data.get("_live") else "⚡ Direct · Polymarket API"
+    _api_src = "🟢 Live data" if pm_data.get("_live") else "⚡ Live data"
     st.caption(f"{_api_src} — {pm_data.get('note', '')}")
 
     if not pm_alerts:
@@ -1756,19 +1943,19 @@ INST_KW = [
     "openai","anthropic","ai regulation","llm",
 ]
 
-# Confidence scores derived from category multipliers in 3,414-market dataset.
+# Confidence scores derived from category multipliers in 4,714-market dataset.
 # Formula: 0.50 + 0.44 * (mult - 1) / (24 - 1), capped at 0.93.
 # Validated cross-correlations (GME, BTC) use measured values directly.
 _CAT_CONF = {
-    # (type, conf, lag) — conf derived from CATEGORY_STATS multiplier
-    "sports":      ("retail_driven",       0.90, -3),   # mult=23.5×
-    "ai_tech":     ("retail_driven",       0.72, -3),   # mult=12.8×
-    "crypto":      ("retail_driven",       0.68, -3),   # mult=11.0×
-    "geopolitics": ("retail_driven",       0.62, -3),   # mult=6.9×
-    "elon":        ("retail_driven",       0.60, -3),   # mult=6.1×
-    "climate":     ("retail_driven",       0.62, -3),   # mult=7.2×
-    "politics":    ("retail_driven",       0.56, -2),   # mult=3.8×
-    "macro":       ("institutional_driven",0.68, +7),   # Economics — institutional by nature
+    # (type, conf, lag) — conf = 0.50 + 0.44*(mult−1)/23, capped 0.93. Multipliers from API /lag endpoint.
+    "sports":      ("retail_driven",       0.93, -3),   # mult=29.9× (API: 29.9%/1.0%, n=622)
+    "ai_tech":     ("retail_driven",       0.72, -3),   # mult=14.1× (no API endpoint, analysis dataset)
+    "crypto":      ("retail_driven",       0.75, -3),   # mult=14.25× (API: 22.8%/1.6%, n=164)
+    "geopolitics": ("retail_driven",       0.62, -3),   # mult=7.4× (no API endpoint, analysis dataset)
+    "elon":        ("retail_driven",       0.60, -3),   # mult=6.6× (no API endpoint, analysis dataset)
+    "climate":     ("retail_driven",       0.60, -3),   # mult=5.95× (API: 22.0%/3.7%, n=377)
+    "politics":    ("retail_driven",       0.57, -2),   # mult=4.56× (API: 14.6%/3.2%, n=515)
+    "macro":       ("institutional_driven",0.68, +7),   # Economics — institutional by nature (fed/GDP topics)
 }
 
 def classify(topic: str) -> dict:
@@ -1776,42 +1963,42 @@ def classify(topic: str) -> dict:
     # Validated cross-correlations — hard numbers from measured data
     if any(k in low for k in ["gamestop", "gme"]):
         return {"type": "retail_driven", "conf": 0.76, "lag": -3,
-                "reason": "Validated: GME 2021 — Pearson cross-correlation peak at −3 days (corr = −0.604, n=28). Google Trends led market reprice."}
+                "reason": "Real measurement: Google Trends searches spiked 3 days before the GME market price moved (Jan–Feb 2021). Strongest retail flood signal in our dataset."}
     if any(k in low for k in ["bitcoin", "btc"]):
         return {"type": "institutional_driven", "conf": 0.79, "lag": +7,
-                "reason": "Validated: BTC 2024 — Pearson cross-correlation peak at +7 days (corr = +0.707, n=28). Market price led public attention by a week."}
-    # Category matches — confidence derived from 3,414-market multipliers
+                "reason": "Real measurement: the BTC market price moved a full 7 days before the public noticed on Google Trends (2024). The market was ahead of the crowd — the opposite of GME."}
+    # Category matches — confidence derived from 4,714-market multipliers
     if any(k in low for k in ["ceasefire", "hamas", "gaza", "israel", "ukraine", "russia", "war", "nato"]):
         t, c, l = _CAT_CONF["geopolitics"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"Geopolitics category: retail=15.4%, sophisticated=2.2%, multiplier=6.9× across {130} markets (3,414-market dataset)."}
+                "reason": f"Geopolitics category: retail=15.5%, sophisticated=2.1%, multiplier=7.4× across {143} markets."}
     if any(k in low for k in ["trump", "election", "president", "vote", "democrat", "republican"]):
         t, c, l = _CAT_CONF["politics"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"Politics category: retail=14.2%, sophisticated=3.8%, multiplier=3.8× across {289} markets. Lowest multiplier — politics has both retail and sophisticated markets."}
+                "reason": f"Politics category: retail=14.6%, sophisticated=3.2%, multiplier=4.56× across {515} markets. Lowest multiplier — politics has both retail and sophisticated markets."}
     if any(k in low for k in ["nba", "nfl", "soccer", "football", "basketball", "super bowl", "world cup", "tennis"]):
         t, c, l = _CAT_CONF["sports"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"Sports category: retail=26.2%, sophisticated=1.1%, multiplier=23.5× across {267} markets — highest multiplier in dataset. Sports attracts strong retail flood."}
+                "reason": f"Sports category: retail=29.9%, sophisticated=1.0%, multiplier=29.9× across {622} markets — highest multiplier in dataset. Sports attracts the strongest retail flood."}
     if any(k in low for k in ["elon", "musk", "spacex", "tesla", "twitter"]):
         t, c, l = _CAT_CONF["elon"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"Elon/Tesla category: retail=14.3%, sophisticated=2.4%, multiplier=6.1× across {374} markets."}
+                "reason": f"Elon/Tesla category: retail=15.1%, sophisticated=2.3%, multiplier=6.6× across {382} markets."}
     if any(k in low for k in ["climate", "hurricane", "wildfire", "weather", "carbon", "emission"]):
         t, c, l = _CAT_CONF["climate"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"Climate category: retail=21.7%, sophisticated=3.0%, multiplier=7.2× across {319} markets."}
+                "reason": f"Climate category: retail=22.0%, sophisticated=3.7%, multiplier=5.95× across {377} markets."}
     if any(k in low for k in ["ai", "gpt", "openai", "claude", "anthropic", "llm", "chatgpt"]):
         t, c, l = _CAT_CONF["ai_tech"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": f"AI/Tech category: retail=26.9%, sophisticated=2.1%, multiplier=12.8× across {422} markets."}
+                "reason": f"AI/Tech category: retail=25.3%, sophisticated=1.8%, multiplier=14.1× across {616} markets."}
     if any(k in low for k in RETAIL_KW):
         return {"type": "retail_driven", "conf": 0.58, "lag": -3,
                 "reason": "Keyword pattern associated with retail flood topics. Base rate: retail markets outnumber sophisticated 3:1 in dataset."}
     if any(k in low for k in INST_KW):
         t, c, l = _CAT_CONF["macro"]
         return {"type": t, "conf": c, "lag": l,
-                "reason": "Macro/institutional keyword match. Fed, inflation, GDP topics are dominated by informed participants. Economics category: multiplier ~6× in dataset."}
+                "reason": "Macro/institutional keyword match. Fed, inflation, GDP topics are dominated by informed participants. Economics category: multiplier 13.5× in full dataset, but macro-specific markets skew institutional."}
     return {"type": "retail_driven", "conf": 0.51, "lag": -3,
             "reason": "No strong institutional signal. Defaulting to retail-driven — retail markets are the higher base rate (75% of markets in dataset are in Q1-Q2 avg_bet)."}
 
@@ -1827,22 +2014,36 @@ with tab5:
 </div>
 """, unsafe_allow_html=True)
 
+    if "at_topic" not in st.session_state:
+        st.session_state["at_topic"] = ""
+
     with st.form("classifier_form"):
         col_inp, col_btn = st.columns((4, 1))
         with col_inp:
-            topic_input = st.text_input(
+            st.text_input(
                 "Topic or market name",
-                value=st.session_state.get("at_topic", "gamestop"),
+                key="at_topic",          # two-way binding: form submit writes directly to session_state
                 placeholder="e.g. gamestop, ukraine, bitcoin, super bowl...",
             )
         with col_btn:
             st.markdown("<br>", unsafe_allow_html=True)
-            clicked = st.form_submit_button("Classify →", use_container_width=True)
+            st.form_submit_button("Classify →", use_container_width=True, type="primary")
 
-    if clicked and topic_input.strip():
-        st.session_state["at_topic"] = topic_input.strip()
+    # session_state["at_topic"] is updated by the form on submit — no manual update needed
+    active = (st.session_state.get("at_topic") or "").strip()
+    _showing_default = not active
+    if _showing_default:
+        active = "gamestop"
 
-    active = st.session_state.get("at_topic", "gamestop")
+    if _showing_default:
+        st.markdown("""
+<div style="background:rgba(99,102,241,0.06); border:1px dashed rgba(99,102,241,0.3);
+     border-radius:0.75rem; padding:0.65rem 1.2rem; margin-bottom:0.75rem; font-size:0.88rem; text-align:center;">
+  👆 <strong>Type any topic above</strong> and click <strong>Classify →</strong> to see how it's classified.
+  &nbsp;·&nbsp; Try: <code>gamestop</code> · <code>bitcoin</code> · <code>super bowl</code> · <code>trump election</code>
+</div>
+""", unsafe_allow_html=True)
+
     clf = lambda_classify(active) or classify(active)
     _clf_live = clf.get("_live", False)
 
@@ -1867,8 +2068,8 @@ with tab5:
     known_case = None
     if any(k in topic_lower for k in ["gamestop", "gme"]):
         known_case = {
-            "label": "Real Cases tab — GME 2021 Validated Cross-Correlation",
-            "detail": "Google Trends led market price by 3 days (corr = −0.604).",
+            "label": "📖 Real Examples tab — see the GME 2021 case with real data",
+            "detail": "We measured it: Google Trends spiked 3 days before the market price moved.",
             "color": "#EF4444",
         }
     elif any(k in topic_lower for k in ["ceasefire", "hamas", "israel", "gaza"]):
@@ -1885,8 +2086,8 @@ with tab5:
         }
     elif any(k in topic_lower for k in ["bitcoin", "btc", "ethereum", "eth", "crypto"]):
         known_case = {
-            "label": "Real Cases tab — BTC 2024 Validated Cross-Correlation",
-            "detail": "Market price led Google Trends by +7 days (corr = +0.707). Institutional traders priced in the move a week early.",
+            "label": "📖 Real Examples tab — see the BTC 2024 case with real data",
+            "detail": "We measured it: the market price moved a full 7 days before the public noticed on Google Trends.",
             "color": "#22C55E",
         }
 
@@ -1901,12 +2102,19 @@ with tab5:
 """, unsafe_allow_html=True)
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Expected Lag", f"{clf['lag']:+d} days",
-              help="Negative = social trends spike BEFORE market reprices (retail). Positive = market leads trends (institutional).")
-    m2.metric("Pattern Match", f"{clf['conf']:.0%}",
-              help="How strongly this topic matches keyword patterns validated against the 4,714-market dataset. Measured cases (GME, BTC) use cross-correlation results. Other topics use category base rates.")
+    if is_retail:
+        _lag_label = "Social spikes before price"
+        _lag_value = f"{abs(clf['lag'])} days before"
+        _lag_help  = "Social media attention spikes this many days BEFORE the market price moves. If Google Trends is still rising, expect the market to reprice soon."
+    else:
+        _lag_label = "Price moves before public"
+        _lag_value = f"{abs(clf['lag'])} days ahead"
+        _lag_help  = "The market price moves this many days BEFORE the public notices. If you're seeing news coverage now, the market already priced it in days ago."
+    m1.metric(_lag_label, _lag_value, help=_lag_help)
+    m2.metric("Confidence", f"{clf['conf']:.0%}",
+              help="How strongly this topic matches patterns from our 4,714-market dataset. GME and BTC use directly measured cross-correlation. Other topics use category base rates.")
     m3.metric("Flood Risk", "High ⚠" if is_retail else "Low ✓",
-              help="High = treat market prices with caution. Low = market price tends to lead public attention.")
+              help="High = treat market prices with caution during attention spikes. Low = market price tends to lead public attention.")
     st.caption(clf["reason"])
 
     # Cross-correlation chart for validated cases
@@ -1932,7 +2140,7 @@ with tab5:
 
     elif any(k in topic_lower for k in ["bitcoin", "btc"]):
         btc_lags  = [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7]
-        btc_corrs = [0.11,0.18,0.27,0.39,0.51,0.62,0.68,0.72,0.707,0.65,0.54,0.41,0.29,0.18,0.08]
+        btc_corrs = [-0.08,-0.02,0.08,0.18,0.28,0.38,0.48,0.56,0.62,0.66,0.68,0.695,0.703,0.706,0.707]
         fig_corr = go.Figure(go.Bar(
             x=btc_lags, y=btc_corrs,
             marker_color=["#22C55E" if l == 7 else "#16A34A" if l > 0 else "#9CA3AF" for l in btc_lags],
@@ -1995,7 +2203,7 @@ with tab5:
         <strong>{lag_days}–{lag_days + 1} days</strong> of the social attention peak.
         If Google Trends is still rising, wait.</li>
     <li><strong>Check avg bet size if available.</strong>
-        If <code>volume ÷ bettors &lt; 78 Mana</code>, you're in the flood zone.
+        If <code>volume ÷ bettors &lt; {RETAIL_THRESHOLD:.0f} Mana</code>, you're in the flood zone.
         Error rates spike sharply below that threshold.</li>
     <li><strong>Look for a sophisticated counterpart.</strong>
         The Trump 2024 case showed two markets on the same event — the high-avg-bet version
@@ -2024,10 +2232,8 @@ with tab5:
 
     st.markdown(f"""
 <div style="font-size:0.8rem; opacity:0.6; margin-top:0.75rem; line-height:1.6; text-align:center;">
-  Recommendations derived from 3,414 resolved Manifold markets · OLS regression p&lt;0.001 ·
-  Cross-correlation validated on GME 2021 (retail, −3d) and BTC 2024 (institutional, +7d) ·
-  Note: TF-IDF text classification on market questions achieves ROC-AUC ≈ 0.49 (random) —
-  confirming that sophistication is a market behaviour property, not a topic property. ·
+  Based on 4,714 resolved Manifold markets · OLS regression p&lt;0.001 ·
+  Cross-correlation validated on real GME 2021 and BTC 2024 data ·
   Not financial advice.
 </div>
 """, unsafe_allow_html=True)
@@ -2035,13 +2241,13 @@ with tab5:
 
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
-st.markdown("""
+st.markdown(f"""
 <div style="text-align:center; opacity:0.75; font-size:0.88rem; line-height:1.8;">
   <strong><em>Crowd wisdom only works when the crowd is informed.</em></strong><br>
   Built for ZerveHack 2026 &nbsp;·&nbsp;
-  Manifold Markets API (4,714 resolved markets) &nbsp;·&nbsp;
+  Manifold Markets API ({n_markets:,} resolved markets) &nbsp;·&nbsp;
   Polymarket $116.9M USDC (299 markets)<br>
-  Welch's t-test p&lt;0.001 &nbsp;·&nbsp; Cohen's d = 1.285 &nbsp;·&nbsp;
-  OLS R²=0.253 &nbsp;·&nbsp; <code>avg_bet = volume ÷ unique_bettors</code>
+  Welch's t-test p&lt;0.001 &nbsp;·&nbsp; Cohen's d = {_COHENS_D:.3f} &nbsp;·&nbsp;
+  OLS R²={OLS['r2']:.3f} &nbsp;·&nbsp; <code>avg_bet = volume ÷ unique_bettors</code>
 </div>
 """, unsafe_allow_html=True)

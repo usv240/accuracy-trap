@@ -15,7 +15,7 @@ When a topic goes viral — an election, a ceasefire, a meme stock — uninforme
 
 We quantified this across 4,714 resolved binary markets from Manifold Markets. Our key metric is simple: `avg_bet = total_volume ÷ unique_bettors`. Low avg bet = retail flood. High avg bet = sophisticated participants.
 
-The finding is stark. Markets in the lowest avg-bet quartile show **22.3% mean calibration error**. Markets in the top quartile show **2.0%**. That's a **10.97× gap** — statistically significant at p < 0.001, Cohen's d = 1.285 (large effect).
+The finding is stark. Markets in the lowest avg-bet quartile show **22.3% mean calibration error**. Markets in the top quartile show **2.0%**. That's a **10.97× gap** — statistically significant at p < 0.001, Cohen's d = 1.256 (large effect).
 
 The obvious objection: maybe viral topics are just harder to predict. We controlled for this. An OLS regression shows log(avg_bet) predicts calibration error independently of log(nr_bettors) — controlling for crowd size, composition still matters at p < 0.001. And a direct cross-validation at the same attention level (same nr_bettors) shows a 5.10× gap by bet-size alone.
 
@@ -36,10 +36,10 @@ We turned this into a live detector. Enter any topic — it's classified as reta
 | Sophisticated market calibration error | 2.0% |
 | Error multiplier | **10.97×** |
 | Statistical significance | p < 0.001 (t=30.498) |
-| Effect size | Cohen's d = 1.285 (Large) |
+| Effect size | Cohen's d = 1.256 (Large) |
 | OLS: log(avg_bet) p-value | < 0.001 (t=−35.07, controlling for crowd size) |
 | OLS R² | 0.253 (n=4,714) |
-| Cross-validation ratio | 5.10× (same attention, different composition) |
+| Cross-validation ratio | 5.10× (same crowd size, different bet composition — 12.5% vs 2.5%) |
 
 ---
 

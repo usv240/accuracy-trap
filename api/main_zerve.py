@@ -66,18 +66,18 @@ _HARDCODED_RESULTS: dict[str, Any] = {
         ),
     },
     "attention_buckets": [
-        {"label": "Micro-bet\n(Retail flood)",  "mean_calibration_error": 0.2160, "sample_size": 854,  "median_avg_bet": 52.0,  "median_nr_bettors": 10},
-        {"label": "Small-bet",                  "mean_calibration_error": 0.0750, "sample_size": 853,  "median_avg_bet": 143.0, "median_nr_bettors": 17},
-        {"label": "Large-bet",                  "mean_calibration_error": 0.0310, "sample_size": 853,  "median_avg_bet": 311.0, "median_nr_bettors": 25},
-        {"label": "Whale-bet\n(Sophisticated)", "mean_calibration_error": 0.0220, "sample_size": 854,  "median_avg_bet": 738.0, "median_nr_bettors": 25},
+        {"label": "Micro-bet\n(Retail flood)",  "mean_calibration_error": 0.2227, "sample_size": 1179, "median_avg_bet": 52.0,  "median_nr_bettors": 10},
+        {"label": "Small-bet",                  "mean_calibration_error": 0.0780, "sample_size": 1178, "median_avg_bet": 136.0, "median_nr_bettors": 17},
+        {"label": "Large-bet",                  "mean_calibration_error": 0.0360, "sample_size": 1178, "median_avg_bet": 297.0, "median_nr_bettors": 25},
+        {"label": "Whale-bet\n(Sophisticated)", "mean_calibration_error": 0.0203, "sample_size": 1179, "median_avg_bet": 720.0, "median_nr_bettors": 25},
     ],
     "retail_flood_detector": {
         "metric":                             "avg_bet_size = volume / nr_bettors",
         "retail_threshold_percentile":        25,
         "retail_threshold_value":             92.6,
-        "high_attention_retail_error":        0.117,
-        "high_attention_sophisticated_error": 0.024,
-        "ratio":                              4.95,
+        "high_attention_retail_error":        0.125,
+        "high_attention_sophisticated_error": 0.025,
+        "ratio":                              5.10,
     },
 }
 
@@ -87,7 +87,7 @@ _ACCURACY_TRAP_DATA: dict[str, Any] = _canvas_results if _canvas_results else _H
 _DATA_SOURCE = "Zerve canvas (live)" if _canvas_results else "hardcoded (canvas unavailable)"
 
 # ---------------------------------------------------------------------------
-# Category stats — hardcoded from 1,535-market dataset
+# Category stats — hardcoded from 4,714-market dataset (/lag API endpoint values)
 # ---------------------------------------------------------------------------
 
 _CATEGORY_STATS: dict[str, Any] = {

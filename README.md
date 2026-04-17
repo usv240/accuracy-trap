@@ -26,7 +26,7 @@ Across **4,714 resolved binary markets** from Manifold Markets:
 | Large-bet | 3.6% | 297 Mana |
 | Whale-bet (Sophisticated) | **2.0%** | 720 Mana |
 
-That's a **10.97× accuracy gap** between the worst and best quartile — confirmed at **p < 0.001**, Cohen's d = 1.285 (large effect by any standard).
+That's a **10.97× accuracy gap** between the worst and best quartile — confirmed at **p < 0.001**, Cohen's d = 1.256 (large effect by any standard).
 
 The obvious objection: maybe viral topics are just harder to predict. We controlled for this. OLS regression shows `log(avg_bet)` predicts calibration error independently of `log(nr_bettors)` — controlling for crowd size, composition still drives accuracy at p < 0.001, t = −35.07. The driver is **who bets**, not how many are watching.
 
@@ -71,7 +71,7 @@ Validated cross-correlations:
 | Sophisticated calibration error | 2.0% (95% CI: 1.6%–2.4%) |
 | Error multiplier | **10.97×** |
 | Welch's t-test | p < 0.001, t = 30.498 |
-| Cohen's d | **1.285** (large effect) |
+| Cohen's d | **1.256** (large effect) |
 | OLS: log(avg_bet) | β = −0.0673, t = −35.07, p < 0.001 |
 | OLS: log(nr_bettors) | β = −0.0098, t = −4.61, p < 0.001 |
 | OLS R² | 0.253 (n = 4,714) |
