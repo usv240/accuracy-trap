@@ -646,10 +646,32 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("**How the trap works**")
     st.markdown("""
-🔥 Topic goes viral → casual bettors pile in
-📉 Average bet drops → noise drowns the signal
-❌ Market price stops reflecting reality
-""")
+<div style="font-size:0.82rem; line-height:1;">
+  <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.55rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+         fill="none" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round">
+      <path d="M12 2c0 6-6 8-6 14a6 6 0 0012 0c0-6-6-8-6-14z"/>
+    </svg>
+    Topic goes viral — casual bettors pile in
+  </div>
+  <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.55rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+         fill="none" stroke="#EF4444" stroke-width="2.5" stroke-linecap="round">
+      <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/>
+      <polyline points="17 18 23 18 23 12"/>
+    </svg>
+    Average bet drops — noise drowns the signal
+  </div>
+  <div style="display:flex; align-items:center; gap:0.5rem;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+         fill="none" stroke="#9CA3AF" stroke-width="2.5" stroke-linecap="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </svg>
+    Market price stops reflecting reality
+  </div>
+</div>
+""", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("**The one signal that catches it**")
     st.markdown(f"`avg_bet < {RETAIL_THRESHOLD:.0f}` → retail flood zone  \n`avg_bet > {SOPH_THRESHOLD:.0f}` → sophisticated market")
@@ -671,19 +693,42 @@ st.markdown("""
 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin:0.75rem 0 1rem 0;">
   <div style="text-align:center; padding:0.85rem; background:rgba(99,102,241,0.07);
        border:1px solid rgba(99,102,241,0.15); border-radius:0.75rem;">
-    <div style="font-size:1.3rem; margin-bottom:0.25rem;">📊</div>
+    <div style="margin:0 auto 0.4rem; width:fit-content;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"
+           fill="none" stroke="#6366F1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/>
+        <line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6"  y1="20" x2="6"  y2="14"/>
+      </svg>
+    </div>
     <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We measured</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">4,714 real markets — comparing predictions to what actually happened</div>
   </div>
   <div style="text-align:center; padding:0.85rem; background:rgba(239,68,68,0.07);
        border:1px solid rgba(239,68,68,0.15); border-radius:0.75rem;">
-    <div style="font-size:1.3rem; margin-bottom:0.25rem;">🚨</div>
+    <div style="margin:0 auto 0.4rem; width:fit-content;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"
+           fill="none" stroke="#EF4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
     <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We found a flaw</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">Casual small bettors flood viral topics and wreck accuracy — by 11×</div>
   </div>
   <div style="text-align:center; padding:0.85rem; background:rgba(34,197,94,0.07);
        border:1px solid rgba(34,197,94,0.15); border-radius:0.75rem;">
-    <div style="font-size:1.3rem; margin-bottom:0.25rem;">🎯</div>
+    <div style="margin:0 auto 0.4rem; width:fit-content;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24"
+           fill="none" stroke="#22C55E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="22" y1="12" x2="18" y2="12"/>
+        <line x1="6"  y1="12" x2="2"  y2="12"/>
+        <line x1="12" y1="6"  x2="12" y2="2"/>
+        <line x1="12" y1="22" x2="12" y2="18"/>
+      </svg>
+    </div>
     <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We built a detector</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">One metric flags it in real time — before the market corrects itself</div>
   </div>
@@ -985,7 +1030,11 @@ with tab1:
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("#### 🔴 Case 1 — The Biggest Single Upset (97% wrong)")
+    st.markdown("""<div style="display:flex; align-items:center; gap:0.5rem; margin:1.2rem 0 0.5rem;">
+  <span style="background:#FEE2E2; color:#991B1B; font-size:0.65rem; font-weight:800;
+    padding:0.12rem 0.5rem; border-radius:999px; letter-spacing:0.06em; flex-shrink:0;">FAIL</span>
+  <span style="font-weight:700; font-size:1rem;">Case 1 — The Biggest Single Upset (97% wrong)</span>
+</div>""", unsafe_allow_html=True)
     st.markdown("""
 <div class="example-card">
 <strong>Will the US successfully broker a ceasefire between Israel and Hamas?</strong><br>
@@ -1017,7 +1066,11 @@ where collective opinion completely overwhelmed any signal.
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("#### 🔴 Case 2 — Same Question, 100× Different Accuracy")
+    st.markdown("""<div style="display:flex; align-items:center; gap:0.5rem; margin:1.2rem 0 0.5rem;">
+  <span style="background:#FEE2E2; color:#991B1B; font-size:0.65rem; font-weight:800;
+    padding:0.12rem 0.5rem; border-radius:999px; letter-spacing:0.06em; flex-shrink:0;">FAIL</span>
+  <span style="font-weight:700; font-size:1rem;">Case 2 — Same Question, 100× Different Accuracy</span>
+</div>""", unsafe_allow_html=True)
     st.markdown("""
 <div style="text-align:center; margin-bottom:0.8rem;">
   <div style="font-size:0.82rem; text-transform:uppercase; letter-spacing:0.08em; opacity:0.55;">Same event · Same day · Same question</div>
@@ -1078,7 +1131,11 @@ where collective opinion completely overwhelmed any signal.
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("#### 🟢 Case 3 — When Markets Get It Exactly Right")
+    st.markdown("""<div style="display:flex; align-items:center; gap:0.5rem; margin:1.2rem 0 0.5rem;">
+  <span style="background:#DCFCE7; color:#166534; font-size:0.65rem; font-weight:800;
+    padding:0.12rem 0.5rem; border-radius:999px; letter-spacing:0.06em; flex-shrink:0;">WIN</span>
+  <span style="font-weight:700; font-size:1rem;">Case 3 — When Markets Get It Exactly Right</span>
+</div>""", unsafe_allow_html=True)
     st.markdown("""
 <div class="example-card">
 <strong>The "Sweet Spot" — high participation + high avg_bet = wisdom of crowds working as intended</strong><br>
@@ -1118,7 +1175,11 @@ the wisdom of crowds works exactly as intended.
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown("#### 🔵 Cross-Correlation Validation — GME & BTC")
+    st.markdown("""<div style="display:flex; align-items:center; gap:0.5rem; margin:1.2rem 0 0.5rem;">
+  <span style="background:#DBEAFE; color:#1E40AF; font-size:0.65rem; font-weight:800;
+    padding:0.12rem 0.5rem; border-radius:999px; letter-spacing:0.06em; flex-shrink:0;">DATA</span>
+  <span style="font-weight:700; font-size:1rem;">Cross-Correlation Validation — GME & BTC</span>
+</div>""", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("""
