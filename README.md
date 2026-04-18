@@ -1,6 +1,6 @@
 # The Accuracy Trap
 
-> Prediction markets are **10.97× less accurate** when retail traders flood in — and we can detect it in real time.
+> Prediction markets are **10.97× less accurate** when retail traders flood in — and I built a real-time detector for it.
 
 Built for [ZerveHack 2026](https://zervehack.devpost.com/).
 
@@ -9,11 +9,11 @@ Built for [ZerveHack 2026](https://zervehack.devpost.com/).
 
 ---
 
-## What We Found
+## What I Found
 
 Prediction markets are supposed to be the most accurate forecasting tool we have. When people risk real money, they're supposed to research carefully.
 
-We found a systematic failure mode. When a topic goes viral, uninformed retail traders flood in with tiny bets — drowning out the small group of careful, informed forecasters who were already there. The price stops reflecting reality. We call it the **Accuracy Trap**.
+I found a systematic failure mode. When a topic goes viral, uninformed retail traders flood in with tiny bets — drowning out the small group of careful, informed forecasters who were already there. The price stops reflecting reality. I call it the **Accuracy Trap**.
 
 The signal is one metric: `avg_bet = total_volume ÷ unique_bettors`.
 
@@ -28,7 +28,7 @@ Across **4,714 resolved binary markets** from Manifold Markets:
 
 That's a **10.97× accuracy gap** between the worst and best quartile — confirmed at **p < 0.001**, Cohen's d = 1.256 (large effect by any standard).
 
-The obvious objection: maybe viral topics are just harder to predict. We controlled for this. OLS regression shows `log(avg_bet)` predicts calibration error independently of `log(nr_bettors)` — controlling for crowd size, composition still drives accuracy at p < 0.001, t = −35.07. The driver is **who bets**, not how many are watching.
+The obvious objection: maybe viral topics are just harder to predict. I controlled for this. OLS regression shows `log(avg_bet)` predicts calibration error independently of `log(nr_bettors)` — controlling for crowd size, composition still drives accuracy at p < 0.001, t = −35.07. The driver is **who bets**, not how many are watching.
 
 ---
 
@@ -49,7 +49,7 @@ Same event. 100× difference in accuracy.
 
 ---
 
-## How We Detect It Live
+## How I Detect It Live
 
 1. Enter any market topic
 2. Keyword + category classifier tags it as **retail-driven** or **institutional-driven**

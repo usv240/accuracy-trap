@@ -687,7 +687,7 @@ with st.sidebar:
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
 st.markdown("# 🎯 The Accuracy Trap")
-st.markdown("**When casual bettors flood prediction markets, accuracy collapses by 11× — and we can detect it in real time.**")
+st.markdown("**When casual bettors flood prediction markets, accuracy collapses by 11× — and I built a real-time detector for it.**")
 
 st.markdown("""
 <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin:0.75rem 0 1rem 0;">
@@ -701,7 +701,7 @@ st.markdown("""
         <line x1="6"  y1="20" x2="6"  y2="14"/>
       </svg>
     </div>
-    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We measured</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">I measured</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">4,714 real markets — comparing predictions to what actually happened</div>
   </div>
   <div style="text-align:center; padding:0.85rem; background:rgba(239,68,68,0.07);
@@ -714,7 +714,7 @@ st.markdown("""
         <line x1="12" y1="17" x2="12.01" y2="17"/>
       </svg>
     </div>
-    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We found a flaw</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">I found a flaw</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">Casual small bettors flood viral topics and wreck accuracy — by 11×</div>
   </div>
   <div style="text-align:center; padding:0.85rem; background:rgba(34,197,94,0.07);
@@ -729,7 +729,7 @@ st.markdown("""
         <line x1="12" y1="22" x2="12" y2="18"/>
       </svg>
     </div>
-    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">We built a detector</div>
+    <div style="font-weight:700; font-size:0.88rem; margin-bottom:0.25rem;">I built a detector</div>
     <div style="font-size:0.79rem; opacity:0.75; line-height:1.4;">One metric flags it in real time — before the market corrects itself</div>
   </div>
 </div>
@@ -775,7 +775,7 @@ st.markdown("""
   <br><br>
   <strong>The problem we found:</strong>&nbsp;
   When a topic goes viral, uninformed retail traders flood in with tiny bets, drowning out the informed forecasters.
-  The market price stops reflecting reality. We built a detector for exactly this failure mode —
+  The market price stops reflecting reality. I built a detector for exactly this failure mode —
   using <strong>avg bet size per participant</strong> as the signal.
 </div>
 """, unsafe_allow_html=True)
@@ -1214,7 +1214,7 @@ with tab2:
   <ol style="margin:0.6rem 0 0 0; padding-left:1.3rem; font-size:0.95rem; line-height:1.9;">
     <li>The market's predictions are compared to what <em>actually happened</em> — the gap is the error.</li>
     <li>Retail-flooded markets are wrong by <strong>22%</strong> on average. Sophisticated markets: <strong>2%</strong>. That's an 11× gap.</li>
-    <li>We ran a statistical test to rule out luck: <strong>less than 1-in-1,000 chance this is random</strong>.</li>
+    <li>I ran a statistical test to rule out luck: <strong>less than 1-in-1,000 chance this is random</strong>.</li>
     <li>We also ruled out the alternative explanation ("viral topics are just harder to predict") — composition drives accuracy even after controlling for popularity.</li>
   </ol>
   <div style="font-size:0.82rem; opacity:0.65; margin-top:0.6rem;">The charts and tables below are the evidence for those four points.</div>
@@ -2130,7 +2130,7 @@ with tab5:
     if any(k in topic_lower for k in ["gamestop", "gme"]):
         known_case = {
             "label": "📖 Real Examples tab — see the GME 2021 case with real data",
-            "detail": "We measured it: Google Trends spiked 3 days before the market price moved.",
+            "detail": "I measured it: Google Trends spiked 3 days before the market price moved.",
             "color": "#EF4444",
         }
     elif any(k in topic_lower for k in ["ceasefire", "hamas", "israel", "gaza"]):
@@ -2148,7 +2148,7 @@ with tab5:
     elif any(k in topic_lower for k in ["bitcoin", "btc", "ethereum", "eth", "crypto"]):
         known_case = {
             "label": "📖 Real Examples tab — see the BTC 2024 case with real data",
-            "detail": "We measured it: the market price moved a full 7 days before the public noticed on Google Trends.",
+            "detail": "I measured it: the market price moved a full 7 days before the public noticed on Google Trends.",
             "color": "#22C55E",
         }
 
