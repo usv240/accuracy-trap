@@ -55,7 +55,7 @@ I turned this into a live detector. Enter any topic — it's classified as retai
 ## Tech Stack
 
 - **Zerve notebook** — full reproducible analysis pipeline
-- **FastAPI** — 6-endpoint backend with live data
+- **FastAPI** — 7-endpoint backend with live data
 - **Streamlit** — interactive 5-tab dashboard
 - **scipy** — Welch's t-test, Cohen's d, OLS regression
 - **Plotly** — calibration curves, correlation charts
