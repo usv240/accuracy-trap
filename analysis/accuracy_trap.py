@@ -570,7 +570,7 @@ def fallback_analysis(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, np.
 def main() -> None:
     print("=" * 60)
     print("THE ACCURACY TRAP - CORE ANALYSIS")
-    print("ZerveHack 2026 | Prediction Market Calibration Study")
+    print("Prediction Market Calibration Study")
     print("=" * 60)
 
     # 1. Load dataset

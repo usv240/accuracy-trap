@@ -1,4 +1,4 @@
-# The Accuracy Trap — ZerveHack 2026 Submission
+# The Accuracy Trap — Submission
 
 ## One-Line Pitch
 Prediction markets are 10.97× less accurate when retail traders flood in — and I built a real-time detector for it.

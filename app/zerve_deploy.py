@@ -622,7 +622,7 @@ def fetch_live_markets(limit: int = 30) -> list[dict]:
 with st.sidebar:
     st.markdown("## 🎯 The Accuracy Trap")
     st.markdown("*Crowd wisdom only works when the crowd is informed.*")
-    st.caption("ZerveHack 2026 · Prediction market retail flood detector")
+    st.caption("Prediction market retail flood detector")
     st.markdown("---")
 
     st.markdown(f"""
@@ -2305,7 +2305,7 @@ st.markdown("<div class='section-divider'></div>", unsafe_allow_html=True)
 st.markdown(f"""
 <div style="text-align:center; opacity:0.75; font-size:0.88rem; line-height:1.8;">
   <strong><em>Crowd wisdom only works when the crowd is informed.</em></strong><br>
-  Built for ZerveHack 2026 &nbsp;·&nbsp;
+  Built by Ujwal &nbsp;·&nbsp;
   Manifold Markets API ({n_markets:,} resolved markets) &nbsp;·&nbsp;
   Polymarket $116.9M USDC (299 markets)<br>
   Welch's t-test p&lt;0.001 &nbsp;·&nbsp; Cohen's d = {_COHENS_D:.3f} &nbsp;·&nbsp;

@@ -1,7 +1,7 @@
 # %% [markdown]
 # # The Accuracy Trap
-# **ZerveHack 2026 | Prediction Market Calibration Study**
-# > "Retail-flooded markets are 7.65× less accurate. We built a real-time detector."
+# **Prediction Market Calibration Study**
+# > "Retail-flooded markets are 11× less accurate. I built a real-time detector."
 
 # %% [markdown]
 # ## 1. Problem Statement

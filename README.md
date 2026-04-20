@@ -2,8 +2,6 @@
 
 > Prediction markets are **10.97× less accurate** when retail traders flood in — and I built a real-time detector for it.
 
-Built for [ZerveHack 2026](https://zervehack.devpost.com/).
-
 **Live app:** [accuracy-trap.hub.zerve.cloud](https://accuracy-trap.hub.zerve.cloud)  
 **Live API:** [Lambda endpoint](https://pil57aej3zgm64vkhospsca4dq0vvnff.lambda-url.us-east-1.on.aws/docs)
 
