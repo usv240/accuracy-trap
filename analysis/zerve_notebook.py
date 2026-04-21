@@ -17,63 +17,27 @@
 # Install dependencies (for Zerve environment)
 import subprocess
 subprocess.run(
-    ["pip", "install", "requests", "pandas", "numpy", "scipy", "plotly", "-q"],
+    ["pip", "install", "pandas", "numpy", "scipy", "plotly", "-q"],
     check=True,
 )
 
 # %%
-# --- CELL: Fetch resolved binary markets from Manifold Markets API ---
-# No authentication required. Returns resolutionProbability + actual outcome + volume + bettors.
-import requests, pandas as pd, time
+# --- CELL: Load pre-computed dataset (4,714 resolved binary markets) ---
+# The full dataset was fetched from Manifold Markets API and saved to CSV.
+# Loading from CSV ensures reproducible, consistent results every run.
+import pandas as pd, numpy as np, os
 
-BASE = "https://api.manifold.markets/v0"
-search_terms = [
-    "will", "election", "economy", "war", "crypto", "sports",
-    "AI", "tech", "health", "politics", "climate", "price",
-    "trump", "bitcoin", "ukraine", "president", "inflation",
-]
+CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manifold_resolved_markets.csv")
+df = pd.read_csv(CSV_PATH)
 
-all_markets = {}
-for term in search_terms:
-    r = requests.get(
-        f"{BASE}/search-markets",
-        params={"term": term, "filter": "resolved", "contractType": "BINARY",
-                "limit": 100, "sort": "score"},
-        timeout=15,
-    )
-    if r.status_code != 200:
-        continue
-    for m in r.json():
-        mid = m.get("id")
-        if (mid and mid not in all_markets
-                and m.get("resolution") in ("YES", "NO")
-                and m.get("resolutionProbability") is not None
-                and m.get("uniqueBettorCount", 0) > 0):
-            all_markets[mid] = m
-    time.sleep(0.3)
+# Ensure correct types
+df["calibration_err"] = df["calibration_err"].astype(float)
+df["avg_bet"]         = df["avg_bet"].astype(float)
+df["nr_bettors"]      = df["nr_bettors"].astype(int)
+df["volume"]          = df["volume"].astype(float)
 
-print(f"Fetched {len(all_markets)} unique resolved binary markets")
-
-# %%
-# --- CELL: Build analysis dataframe ---
-import numpy as np
-
-rows = []
-for m in all_markets.values():
-    prob = float(m["resolutionProbability"])
-    res  = 1 if m["resolution"] == "YES" else 0
-    rows.append({
-        "prob":            prob,
-        "resolution":      res,
-        "calibration_err": abs(prob - res),
-        "brier":           (prob - res) ** 2,
-        "nr_bettors":      int(m.get("uniqueBettorCount", 0)),
-        "volume":          float(m.get("volume", 0)),
-    })
-
-df = pd.DataFrame(rows)
-df["avg_bet"] = df["volume"] / df["nr_bettors"].clip(lower=1)
-print(f"Markets: {len(df)} | Mean calibration error: {df['calibration_err'].mean():.1%}")
+print(f"Loaded {len(df)} resolved binary markets from CSV")
+print(f"Mean calibration error: {df['calibration_err'].mean():.1%}")
 print(f"avg_bet range: {df['avg_bet'].min():.1f} – {df['avg_bet'].max():.1f}")
 
 # %%
@@ -217,16 +181,16 @@ fig.show()
 #
 # | Market Type | Calibration Error | Median Avg Bet |
 # |---|---|---|
-# | Micro-bet (Retail flood) | **24.5%** | 42 Mana |
-# | Small-bet | 9.7% | 113 Mana |
-# | Large-bet | 4.9% | 240 Mana |
-# | Whale-bet (Sophisticated) | **3.2%** | 617 Mana |
+# | Micro-bet (Retail flood) | **22.3%** | 52 Mana |
+# | Small-bet | 7.8% | 136 Mana |
+# | Large-bet | 3.6% | 297 Mana |
+# | Whale-bet (Sophisticated) | **2.0%** | 720 Mana |
 #
-# **Error multiplier: 7.65×** — retail-flooded markets are 7.65× less accurate.
+# **Error multiplier: 10.97×** — retail-flooded markets are 10.97× less accurate.
 # Statistical significance: p < 0.001, Cohen's d = 1.256 (Large effect).
 #
 # Cross-validation confirms: same attention level, different bet-size composition →
-# **4.56× difference in accuracy**. The driver is WHO bets, not how many watch.
+# **5.10× difference in accuracy**. The driver is WHO bets, not how many watch.
 #
 # OLS regression confirms: log(avg_bet) predicts calibration error independently of
 # log(nr_bettors). Controlling for attention, composition alone is significant at p<0.001.
@@ -234,7 +198,7 @@ fig.show()
 # %% [markdown]
 # ## Polymarket Cross-Validation (Real Money)
 #
-# Manifold Markets uses Mana (play money). To validate on real-money markets, we cross-reference
+# Manifold Markets uses Mana (play money). To validate on real-money markets, I cross-reference
 # with Polymarket (USDC). The dual-Trump-2024 case is the strongest evidence:
 #
 # | Market version      | Avg Bet (proxy) | Predicted | Actual | Error |
