@@ -25,9 +25,9 @@ subprocess.run(
 # --- CELL: Load pre-computed dataset (4,714 resolved binary markets) ---
 # The full dataset was fetched from Manifold Markets API and saved to CSV.
 # Loading from CSV ensures reproducible, consistent results every run.
-import pandas as pd, numpy as np, os
+import pandas as pd, numpy as np
 
-CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "manifold_resolved_markets.csv")
+CSV_PATH = "manifold_resolved_markets.csv"
 df = pd.read_csv(CSV_PATH)
 
 # Ensure correct types
