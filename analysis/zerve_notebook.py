@@ -32,9 +32,11 @@ df = pd.read_csv(CSV_PATH)
 
 # Ensure correct types
 df["calibration_err"] = df["calibration_err"].astype(float)
-df["avg_bet"]         = df["avg_bet"].astype(float)
 df["nr_bettors"]      = df["nr_bettors"].astype(int)
 df["volume"]          = df["volume"].astype(float)
+
+# Recompute avg_bet from source columns — robust even if CSV column is missing/stale
+df["avg_bet"] = df["volume"] / df["nr_bettors"].clip(lower=1)
 
 print(f"Loaded {len(df)} resolved binary markets from CSV")
 print(f"Mean calibration error: {df['calibration_err'].mean():.1%}")
